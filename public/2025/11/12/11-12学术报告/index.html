@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon32.ico">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon16.ico">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Pisces","darkmode":true,"version":"8.24.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"stackoverflow-dark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":false,"style":null},"fold":{"enable":true,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"i18n":{"placeholder":"Searching...","empty":"We didn't find any results for the search: ${query}","hits_time":"${hits} results found in ${time} ms","hits":"${hits} results found"},"path":"/search.xml","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="Scaling Task Synthesis for Large Language Model Reasoning">
+<meta property="og:type" content="article">
+<meta property="og:title" content="11.12学术报告">
+<meta property="og:url" content="http://example.com/2025/11/12/11-12%E5%AD%A6%E6%9C%AF%E6%8A%A5%E5%91%8A/index.html">
+<meta property="og:site_name" content="Michel Johnson&#39;s Blog">
+<meta property="og:description" content="Scaling Task Synthesis for Large Language Model Reasoning">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://example.com/images/1.jpg">
+<meta property="og:image" content="http://example.com/images/2.jpg">
+<meta property="og:image" content="http://example.com/images/3.jpg">
+<meta property="og:image" content="http://example.com/images/4.jpg">
+<meta property="og:image" content="http://example.com/images/5.jpg">
+<meta property="og:image" content="http://example.com/images/6.jpg">
+<meta property="og:image" content="http://example.com/images/7.jpg">
+<meta property="og:image" content="http://example.com/images/8.jpg">
+<meta property="og:image" content="http://example.com/images/9.jpg">
+<meta property="og:image" content="http://example.com/images/10.jpg">
+<meta property="og:image" content="http://example.com/images/11.jpg">
+<meta property="og:image" content="http://example.com/images/12.jpg">
+<meta property="og:image" content="http://example.com/images/13.jpg">
+<meta property="og:image" content="http://example.com/images/14.jpg">
+<meta property="og:image" content="http://example.com/images/15.jpg">
+<meta property="og:image" content="http://example.com/images/16.jpg">
+<meta property="og:image" content="http://example.com/images/17.jpg">
+<meta property="og:image" content="http://example.com/images/18.jpg">
+<meta property="og:image" content="http://example.com/images/19.jpg">
+<meta property="article:published_time" content="2025-11-12T08:26:04.000Z">
+<meta property="article:modified_time" content="2025-11-12T08:57:13.343Z">
+<meta property="article:author" content="Michel Johnson">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/images/1.jpg">
+
+
+<link rel="canonical" href="http://example.com/2025/11/12/11-12%E5%AD%A6%E6%9C%AF%E6%8A%A5%E5%91%8A/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"en","comments":true,"permalink":"http://example.com/2025/11/12/11-12%E5%AD%A6%E6%9C%AF%E6%8A%A5%E5%91%8A/","path":"2025/11/12/11-12学术报告/","title":"11.12学术报告"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>11.12学术报告 | Michel Johnson's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+
+  
+
+</div>
+
+
+
+
+  
+
+  <script class="next-config" data-name="enableMath" type="application/json">true</script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" integrity="sha256-UF1fgpAiu3tPJN/uCqEUHNe7pnr+QR0SQDNfgglgtcM=" crossorigin="anonymous">
+  <script class="next-config" data-name="katex" type="application/json">{"copy_tex_js":{"url":"https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/copy-tex.min.js","integrity":"sha256-Us54+rSGDSTvIhKKUs4kygE2ipA0RXpWWh0/zLqw3bs="}}</script>
+  <script src="/js/third-party/math/katex.js" defer></script>
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Michel Johnson's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Catch the future</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="Search" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>Tags</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>Categories</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>Search
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="Searching..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Scaling-Task-Synthesis-for-Large-Language-Model-Reasoning"><span class="nav-number">1.</span> <span class="nav-text">Scaling Task Synthesis for Large Language Model Reasoning</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#These-slides-are-part-of-the-presentation"><span class="nav-number">1.0.1.</span> <span class="nav-text">These slides are part of the presentation</span></a></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Michel Johnson"
+      src="/images/head.png">
+  <p class="site-author-name" itemprop="name">Michel Johnson</p>
+  <div class="site-description" itemprop="description">From Beihang University</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/Michel-Johnson" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;Michel-Johnson" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/micheljohnsonofficial@gmail.com" title="E-Mail → micheljohnsonofficial@gmail.com" rel="noopener me"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="en">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2025/11/12/11-12%E5%AD%A6%E6%9C%AF%E6%8A%A5%E5%91%8A/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/head.png">
+      <meta itemprop="name" content="Michel Johnson">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Michel Johnson's Blog">
+      <meta itemprop="description" content="From Beihang University">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="11.12学术报告 | Michel Johnson's Blog">
+      <meta itemprop="description" content="Scaling Task Synthesis for Large Language Model Reasoning">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          11.12学术报告
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">Posted on</span>
+      
+
+      <time title="Created: 2025-11-12 16:26:04 / Modified: 16:57:13" itemprop="dateCreated datePublished" datetime="2025-11-12T16:26:04+08:00">2025-11-12</time>
+    </span>
+
+  
+    <span class="post-meta-item" title="Views" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">Views: </span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">Scaling Task Synthesis for Large Language Model Reasoning</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Scaling-Task-Synthesis-for-Large-Language-Model-Reasoning"><a href="#Scaling-Task-Synthesis-for-Large-Language-Model-Reasoning" class="headerlink" title="Scaling Task Synthesis for Large Language Model Reasoning"></a>Scaling Task Synthesis for Large Language Model Reasoning</h1><p>主要内容是关于任务合成和数据合成</p>
+<p>在场景较多，或者说在真实环境下，真正能够用于解决用户问题的数据是稀疏的。比如一个问题有10个可能的解法，其中有2种是正确的，而用户真实需要的其实只有一种解法，因此如何让少数据达到和多数据一样的效果，任务合成是必要的。（这句话可能有点啰嗦，总之就是说任务合成是很重要的，甚至和强化学习一样重要)</p>
+<p>他们在 <em>数学题</em> 这个场景下进行分析</p>
+<ul>
+<li>如何衡量生成问题的难度？</li>
+</ul>
+<p>用另一个模型专用于解题：这个模型做的越差，推理过程越长，就证明合成的数据（题目）越难、越复杂<br>显然，这个评测方法有瑕疵，但他们想不到更好的办法去评测题目难度</p>
+<ul>
+<li>如何去判断生成的问题的正确性</li>
+</ul>
+<p>他是这么解释的（我可能记忆不是很准确，但是大概的意思应该是这样）：人类去判断出的题对不对，要先去做了才知道，如果做的过程中发现了矛盾，或者说解不出来，就说明这个题目是错误的。因此对于模型也是如此，生成的题目对不对，要解题模型做了才知道，解题模型做的对不对，那就不一定了。所以这就成了先有蛋还是先有鸡的问题。但是事实上，如果我们生成的问题中有1/3是错误的，有2/3是正确的，其实我们再训一组就能达到很好的效果（指2/3+2/3&gt;1)，总之意思就是数据量上去，复杂度上去，模型最后能实现很好的效果就行了，能提高模型任务合成的能力就行。但是如果模型合成100个问题，90个都是重复的，那这个就不是期望的模型达到的效果了。</p>
+<h3 id="These-slides-are-part-of-the-presentation"><a href="#These-slides-are-part-of-the-presentation" class="headerlink" title="These slides are part of the presentation"></a>These slides are part of the presentation</h3><p><img src="/images/1.jpg" alt="1"></p>
+<p><img src="/images/2.jpg" alt="2"></p>
+<p><img src="/images/3.jpg" alt="3"></p>
+<p><img src="/images/4.jpg" alt="4"></p>
+<p>Prompt CoT 主要是问题合成，其中1.0混有人工生成的数据</p>
+<p>2.0版本的所有数据都由模型合成</p>
+<p><img src="/images/5.jpg" alt="5"></p>
+<p><img src="/images/6.jpg" alt="6"></p>
+<p><img src="/images/7.jpg" alt="7"></p>
+<p><img src="/images/8.jpg" alt="8"></p>
+<p><img src="/images/9.jpg" alt="9"></p>
+<p><img src="/images/10.jpg" alt="10"></p>
+<p><img src="/images/11.jpg" alt="11"></p>
+<p>可以发现，虽然提供数据的机构不同，但他们的数据源是比较相近的（这里的数据是人工合成的）</p>
+<p><img src="/images/12.jpg" alt="12"></p>
+<p><img src="/images/13.jpg" alt="13"></p>
+<p>多模态方面的工作</p>
+<p><img src="/images/14.jpg" alt="14"></p>
+<p><img src="/images/15.jpg" alt="15"></p>
+<p><img src="/images/16.jpg" alt="16"></p>
+<p><img src="/images/17.jpg" alt="17"></p>
+<p><img src="/images/18.jpg" alt="18"></p>
+<p><img src="/images/19.jpg" alt="19"></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2025/10/23/BEV/" rel="prev" title="BEV">
+                  <i class="fa fa-angle-left"></i> BEV
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2025/12/31/%E5%B9%B4%E7%BB%88%E6%80%BB%E7%BB%93/" rel="next" title="年终总结">
+                  年终总结 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Michel Johnson</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="Total Visitors">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="Total Views">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+<!-- 网站运行时间的设置 -->
+<span id="timeDate">载入天数...</span>
+<span id="times">载入时分秒...</span>
+<script>
+    var now = new Date();
+    function createtime() {
+         var grt= new Date("08/18/2025 00:00:00"); //此处修改你的建站时间或者网站上线时间
+        now.setTime(now.getTime()+250);
+        days = (now - grt ) / 1000 / 60 / 60 / 24; dnum = Math.floor(days);
+        hours = (now - grt ) / 1000 / 60 / 60 - (24 * dnum); hnum = Math.floor(hours);
+        if(String(hnum).length ==1 ){hnum = "0" + hnum;} minutes = (now - grt ) / 1000 /60 - (24 * 60 * dnum) - (60 * hnum);
+        mnum = Math.floor(minutes); if(String(mnum).length ==1 ){mnum = "0" + mnum;}
+        seconds = (now - grt ) / 1000 - (24 * 60 * 60 * dnum) - (60 * 60 * hnum) - (60 * mnum);
+        snum = Math.round(seconds); if(String(snum).length ==1 ){snum = "0" + snum;}
+        document.getElementById("timeDate").innerHTML = "This site has been safely running for "+dnum+" days ";
+        document.getElementById("times").innerHTML = hnum + " hours " + mnum + " minutes " + snum + " seconds.";
+    }
+setInterval("createtime()",250);
+</script>
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="Back to top">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
