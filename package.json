@@ -14,7 +14,7 @@
   "dependencies": {
     "@iktakahiro/markdown-it-katex": "^4.0.1",
     "@renbaoshuo/markdown-it-katex": "^2.0.2",
-    "hexo": "^7.3.0",
+    "hexo": "^8.1.1",
     "hexo-asset-img": "^1.2.0",
     "hexo-deployer-git": "^4.0.0",
     "hexo-filter-mathjax": "^0.9.1",
