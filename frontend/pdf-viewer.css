@@ -1,0 +1,214 @@
+@font-face {
+  font-family: "Michel Sketch";
+  src: url("./assets/fonts/comic-neue-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  color: #2d2d2d;
+  background: #fdfbf7;
+  font-family: "Michel Sketch", "Trebuchet MS", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { min-height: 100%; }
+
+body {
+  margin: 0;
+  background-color: #fdfbf7;
+  background-image: radial-gradient(circle, rgba(45, 45, 45, .08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+button, a, input { font: inherit; }
+
+.pdf-reader {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  min-height: 100dvh;
+}
+
+.reader-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 78px;
+  padding: 14px clamp(16px, 4vw, 54px);
+  border-bottom: 3px solid #2d2d2d;
+  background: rgba(253, 251, 247, .96);
+}
+
+.reader-brand,
+.reader-open,
+.reader-toolbar button {
+  border: 3px solid #2d2d2d;
+  border-radius: 7px;
+  background: #fffdf8;
+  box-shadow: 4px 5px 0 #2d2d2d;
+  color: #2d2d2d;
+  text-decoration: none;
+}
+
+.reader-brand,
+.reader-open {
+  padding: 9px 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.reader-title { min-width: 0; }
+
+.reader-title span,
+.reader-title strong { display: block; }
+
+.reader-title span {
+  color: #ff5753;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.reader-title strong {
+  overflow: hidden;
+  margin-top: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+
+.reader-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 66px;
+  padding: 10px 16px 13px;
+  border-bottom: 2px solid rgba(45, 45, 45, .28);
+  background: rgba(253, 251, 247, .94);
+  backdrop-filter: blur(10px);
+}
+
+.reader-toolbar button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 38px;
+  padding: 0;
+  box-shadow: 3px 4px 0 #2d2d2d;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reader-toolbar button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 2px 0 #2d2d2d;
+}
+
+.reader-toolbar button:disabled { opacity: .35; cursor: default; }
+
+.reader-toolbar .zoom-value { width: 72px; font-size: 14px; }
+
+.page-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.page-control input {
+  width: 50px;
+  height: 36px;
+  border: 2px solid #2d2d2d;
+  border-radius: 5px;
+  background: #fff;
+  text-align: center;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 28px;
+  margin: 0 3px;
+  background: rgba(45, 45, 45, .25);
+}
+
+.reader-stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(18px, 3vw, 46px);
+  background: #dedbd5;
+  overscroll-behavior: contain;
+}
+
+.reader-stage canvas {
+  display: none;
+  max-width: none;
+  border: 1px solid rgba(45, 45, 45, .18);
+  background: #fff;
+  box-shadow: 0 14px 38px rgba(45, 45, 45, .23);
+}
+
+.reader-stage.is-ready canvas { display: block; }
+
+.reader-status {
+  align-self: center;
+  max-width: 520px;
+  padding: 18px 22px;
+  border: 3px solid #2d2d2d;
+  border-radius: 8px;
+  background: #fffdf8;
+  box-shadow: 6px 7px 0 #2d2d2d;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reader-stage.is-ready .reader-status { display: none; }
+
+.reader-status a { color: #2d2d2d; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .reader-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: 64px;
+    padding: 10px 12px;
+  }
+
+  .reader-brand { display: none; }
+  .reader-title strong { font-size: 15px; }
+  .reader-open { padding: 8px 10px; font-size: 13px; }
+
+  .reader-toolbar {
+    gap: 7px;
+    min-height: 59px;
+    padding: 8px 9px 11px;
+  }
+
+  .reader-toolbar button { width: 36px; height: 34px; }
+  .reader-toolbar .zoom-value { width: 60px; font-size: 12px; }
+  .page-control { gap: 4px; font-size: 13px; }
+  .page-control input { width: 42px; height: 32px; }
+  .toolbar-separator { margin: 0; }
+  .reader-stage { padding: 14px 10px 28px; }
+}

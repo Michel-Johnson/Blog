@@ -1,0 +1,533 @@
+/*
+ * Sketch responsive architecture
+ *
+ * One fluid scale, three structural modes:
+ *   compact  : phones and narrow split-screen windows
+ *   medium   : tablets and small laptops
+ *   wide     : desktop and ultrawide, with a capped reading stage
+ *
+ * This file is loaded last so it can reconcile older page-specific breakpoints.
+ */
+
+:root {
+  --layout-gutter: clamp(12px, 3.2vw, 44px);
+  --surface-gutter: clamp(16px, 4.8vw, 72px);
+  --layout-stage: 1420px;
+  --reading-measure: 700px;
+  --touch-target: 44px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Responsive display rules must never override application visibility state. */
+[hidden],
+.admin-workbench[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  min-width: 0;
+  max-width: 100%;
+}
+
+img,
+video,
+iframe,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+/* The modeled shelf owns an intrinsic cabinet aspect ratio at every size. */
+.modeled-cabinet-stage {
+  min-height: 0 !important;
+}
+
+.site-shell,
+.post-shell {
+  box-sizing: border-box;
+  padding-left: max(var(--layout-gutter), var(--safe-left));
+  padding-right: max(var(--layout-gutter), var(--safe-right));
+}
+
+.site-nav,
+.post-nav,
+.post-page {
+  max-width: var(--layout-stage);
+}
+
+.post-content,
+.admin-preview-body,
+.rich-editor .ProseMirror,
+.rich-editor .toastui-editor-contents {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.post-content a,
+.admin-preview-body a,
+.rich-editor .ProseMirror a,
+.rich-editor .toastui-editor-contents a {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.post-content :is(pre, .table-wrap, mjx-container[display="true"], .katex-display),
+.admin-preview-body :is(pre, .table-wrap, mjx-container[display="true"], .katex-display) {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Compact: continuous sizing from 320px phones through 767px. */
+@media (max-width: 47.99rem) {
+  :root {
+    --layout-gutter: clamp(10px, 3.6vw, 18px);
+    --surface-gutter: clamp(16px, 5vw, 24px);
+    --article-font-size: clamp(15.75px, 2.5vw + 8px, 17px);
+    --article-line-height: 1.72;
+    --article-block-gap: .94em;
+  }
+
+  html,
+  body {
+    width: 100%;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .site-shell,
+  .post-shell {
+    width: 100%;
+    padding-left: max(var(--layout-gutter), var(--safe-left)) !important;
+    padding-right: max(var(--layout-gutter), var(--safe-right)) !important;
+  }
+
+  .site-nav {
+    gap: 10px;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+    max-width: 48vw;
+  }
+
+  .brand-lockup span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-links {
+    min-width: 0;
+    gap: 7px;
+    overflow-x: auto;
+    padding: 2px 2px 6px;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-links a {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding-inline: 11px;
+  }
+
+  .post-shell {
+    padding-top: max(14px, var(--safe-top));
+    padding-bottom: calc(104px + var(--safe-bottom)) !important;
+  }
+
+  .post-nav {
+    margin-bottom: clamp(26px, 7vw, 38px) !important;
+  }
+
+  .post-page {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 0 !important;
+  }
+
+  .post-rail {
+    display: block !important;
+  }
+
+  .post-hero {
+    width: 100%;
+    margin: 0 0 clamp(16px, 4.5vw, 24px) !important;
+    padding: clamp(20px, 5vw, 26px) clamp(16px, 4.6vw, 22px) clamp(22px, 5.5vw, 28px) !important;
+    border-width: 2px !important;
+    border-radius: 26px 18px 24px 20px / 18px 25px 20px 24px !important;
+    box-shadow: 5px 5px 0 var(--ink) !important;
+    transform: none !important;
+  }
+
+  .post-top-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 9px;
+  }
+
+  .post-top-row .back-link,
+  .post-edit-button {
+    box-sizing: border-box;
+    min-height: var(--touch-target);
+    margin-bottom: 20px;
+    padding: 9px 11px 8px;
+    font-size: 12px;
+  }
+
+  .post-top-row .back-link {
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .post-kicker {
+    margin-bottom: 12px;
+    font-size: 11px;
+  }
+
+  .post-hero h1,
+  .post-hero h1.is-cjk-title {
+    max-width: 100%;
+    font-size: clamp(28px, 8vw, 38px) !important;
+    line-height: 1.08 !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .post-excerpt {
+    margin-top: 16px;
+    font-size: clamp(15px, 4.1vw, 17px) !important;
+    line-height: 1.52 !important;
+  }
+
+  .post-paper {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: clamp(26px, 7vw, 36px) var(--surface-gutter) clamp(34px, 8vw, 44px) !important;
+    border-width: 2px !important;
+    border-radius: 22px 28px 23px 26px / 27px 20px 28px 22px !important;
+    box-shadow: 5px 5px 0 var(--ink) !important;
+    transform: none !important;
+    overflow: hidden !important;
+  }
+
+  .post-paper::before {
+    inset: 9px !important;
+    border-width: 1px !important;
+  }
+
+  .post-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto;
+    font-size: var(--article-font-size) !important;
+    line-height: var(--article-line-height) !important;
+    letter-spacing: 0;
+    overflow: visible !important;
+  }
+
+  .post-content p,
+  .post-content li,
+  .post-content blockquote {
+    line-height: var(--article-line-height) !important;
+  }
+
+  .post-content h1 { font-size: clamp(28px, 7.8vw, 34px) !important; }
+  .post-content h2 { font-size: clamp(24px, 6.8vw, 30px) !important; }
+  .post-content h3 { font-size: clamp(21px, 5.8vw, 26px) !important; }
+  .post-content h4 { font-size: clamp(18px, 5vw, 22px) !important; }
+
+  .post-content :is(ul, ol) {
+    padding-left: 1.35em !important;
+  }
+
+  .post-content img,
+  .post-content figure,
+  .post-content video,
+  .post-content iframe {
+    box-sizing: border-box;
+    width: auto;
+    max-width: 100% !important;
+    height: auto !important;
+    margin-inline: auto !important;
+    object-fit: contain;
+  }
+
+  .post-footer {
+    margin-top: 32px;
+    padding-bottom: 58px;
+  }
+
+  .reader-assistant-launcher {
+    right: max(12px, var(--safe-right)) !important;
+    bottom: max(12px, var(--safe-bottom)) !important;
+    min-width: 68px !important;
+    min-height: 42px !important;
+    padding: 8px 13px !important;
+    font-size: 13px !important;
+  }
+
+  .reader-assistant {
+    inset: auto 0 0 !important;
+    width: 100% !important;
+    height: min(78dvh, 650px) !important;
+    max-height: calc(100dvh - var(--safe-top) - 8px) !important;
+  }
+
+  .all-posts-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .all-post-books.all-post-books--cells {
+    gap: clamp(10px, 3vw, 14px) !important;
+    padding-inline: 10px !important;
+    scroll-padding-inline: 10px;
+  }
+
+  .all-post-books--cells .all-post-cell {
+    flex-basis: min(294px, calc(100vw - 52px));
+    min-width: min(294px, calc(100vw - 52px));
+  }
+
+  .all-post-books--cells .all-post-bay,
+  .all-post-books--cells .all-post-cell--full .all-post-bay {
+    grid-template-columns: repeat(3, minmax(62px, 1fr)) !important;
+    gap: 16px 8px !important;
+  }
+
+  .admin-workbench,
+  .admin-workbench.is-sidebar-collapsed {
+    box-sizing: border-box;
+    width: 100% !important;
+    padding-inline: max(10px, var(--safe-left)) max(10px, var(--safe-right)) !important;
+  }
+
+  .admin-sidebar {
+    padding: 18px 16px 22px !important;
+    border-width: 3px !important;
+    border-radius: 18px !important;
+    box-shadow: 6px 6px 0 #30302e !important;
+  }
+
+  .admin-document {
+    min-height: calc(100dvh - 172px) !important;
+    height: calc(100dvh - 172px) !important;
+    padding: 6px !important;
+    border-radius: 15px 18px 16px 17px !important;
+  }
+
+  .rich-editor .toastui-editor-contents,
+  .rich-editor .ProseMirror,
+  .markdown-source,
+  .admin-preview-body {
+    box-sizing: border-box;
+    width: min(var(--reading-measure), calc(100% - 24px)) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    font-size: var(--article-font-size) !important;
+  }
+}
+
+/* Medium: tablets and small laptops keep a generous single reading column. */
+@media (min-width: 48rem) and (max-width: 71.99rem) {
+  :root {
+    --layout-gutter: clamp(22px, 4vw, 38px);
+    --surface-gutter: clamp(34px, 6vw, 58px);
+  }
+
+  .post-shell {
+    padding-top: 24px;
+    padding-bottom: 84px;
+  }
+
+  .post-nav,
+  .post-page {
+    width: min(820px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .post-page {
+    display: block !important;
+  }
+
+  .post-rail {
+    display: block !important;
+  }
+
+  .post-hero {
+    margin-bottom: 28px !important;
+    padding: 32px 38px 36px !important;
+  }
+
+  .post-hero h1,
+  .post-hero h1.is-cjk-title {
+    font-size: clamp(34px, 5vw, 46px) !important;
+    letter-spacing: 0 !important;
+  }
+
+  .post-paper {
+    padding: 50px var(--surface-gutter) 58px !important;
+    transform: none !important;
+  }
+
+  .post-content {
+    width: min(var(--reading-measure), 100%) !important;
+    margin-inline: auto;
+  }
+
+  .post-rail .reader-assistant-launcher {
+    position: fixed !important;
+    right: max(18px, var(--safe-right)) !important;
+    bottom: max(18px, var(--safe-bottom)) !important;
+    width: auto !important;
+    min-height: 46px !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+  }
+
+  .post-rail .reader-assistant {
+    position: fixed !important;
+    inset: auto max(18px, var(--safe-right)) max(18px, var(--safe-bottom)) auto !important;
+    width: min(480px, calc(100vw - 36px)) !important;
+    height: min(680px, calc(100dvh - 36px)) !important;
+  }
+
+  .admin-workbench,
+  .admin-workbench.is-sidebar-collapsed {
+    display: block !important;
+    width: min(920px, 100%) !important;
+    padding-inline: var(--layout-gutter) !important;
+  }
+
+  .mobile-workbench-tabs {
+    display: grid !important;
+  }
+
+  .admin-workbench[data-mobile-view="write"] .admin-sidebar,
+  .admin-workbench[data-mobile-view="preview"] .admin-sidebar,
+  .admin-workbench[data-mobile-view="details"] .admin-document {
+    display: none !important;
+  }
+
+  .admin-sidebar {
+    position: static !important;
+    max-height: none !important;
+    margin-bottom: 22px;
+  }
+
+  .admin-document {
+    width: 100% !important;
+    min-height: calc(100dvh - 184px) !important;
+    height: calc(100dvh - 184px) !important;
+  }
+}
+
+/* Wide: keep the whole composition together instead of stretching on ultrawide screens. */
+@media (min-width: 72rem) {
+  .site-nav,
+  .post-nav,
+  .post-page {
+    width: min(var(--layout-stage), 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .post-page {
+    grid-template-columns: clamp(360px, 27vw, 430px) minmax(0, 820px) !important;
+    gap: clamp(40px, 4vw, 60px) !important;
+    justify-content: center;
+  }
+
+  .post-rail .reader-assistant {
+    width: min(var(--reader-assistant-width, 480px), calc(100vw - (2 * var(--layout-gutter)))) !important;
+    height: min(var(--reader-assistant-height, 340px), calc(100dvh - 64px)) !important;
+    min-height: 340px !important;
+    max-height: min(720px, calc(100dvh - 64px));
+    max-width: none !important;
+    justify-self: start;
+    margin-left: calc(100% - var(--reader-assistant-width, 480px) + 12px) !important;
+    margin-right: 0 !important;
+    transition: height 160ms ease;
+  }
+
+  .post-rail .reader-assistant-resize-handle {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    z-index: 5;
+    width: 10px;
+    height: 50px;
+    border-radius: 0 7px 7px 0;
+    background: rgba(255, 230, 109, .74);
+    cursor: ew-resize;
+    touch-action: none;
+    transform: translateY(-50%);
+    transition: background-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .post-rail .reader-assistant-resize-handle span,
+  .post-rail .reader-assistant-resize-handle::before,
+  .post-rail .reader-assistant-resize-handle::after {
+    width: 2px;
+    height: 17px;
+    border-radius: 999px;
+    background: rgba(45, 45, 45, .58);
+    content: '';
+  }
+
+  .post-rail .reader-assistant-resize-handle::before,
+  .post-rail .reader-assistant-resize-handle::after {
+    position: absolute;
+    top: 16px;
+  }
+
+  .post-rail .reader-assistant-resize-handle::before { left: 2px; }
+  .post-rail .reader-assistant-resize-handle::after { right: 2px; }
+
+  .post-rail .reader-assistant-resize-handle:hover,
+  .post-rail .reader-assistant-resize-handle:focus-visible,
+  .post-rail .reader-assistant-resize-handle.is-active {
+    background: var(--yellow);
+    box-shadow: 0 0 0 2px rgba(45, 45, 45, .28);
+    outline: none;
+  }
+
+  .post-content {
+    width: min(var(--reading-measure), 100%) !important;
+    max-width: var(--reading-measure) !important;
+  }
+
+  .admin-workbench {
+    max-width: 1540px;
+  }
+}
+
+@supports not (overflow: clip) {
+  @media (max-width: 47.99rem) {
+    html,
+    body {
+      overflow-x: hidden;
+    }
+  }
+}

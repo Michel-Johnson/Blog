@@ -1,0 +1,1 @@
+window.MICHEL_PINNED_POSTS = [];

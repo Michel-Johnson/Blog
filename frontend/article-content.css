@@ -1,0 +1,375 @@
+@font-face {
+  font-family: "Michel Noto Serif SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/noto-serif-sc-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Michel Noto Serif SC";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url("./assets/fonts/noto-serif-sc-700.woff2") format("woff2");
+}
+
+:root {
+  --article-content-width: 700px;
+  --article-font-size: 19px;
+  --article-line-height: 1.86;
+  --article-block-gap: 1.15em;
+  --article-font: "Michel Noto Serif SC", Georgia, serif;
+}
+
+.rich-editor .ProseMirror,
+.rich-editor .toastui-editor-contents,
+.admin-preview-body,
+.post-content {
+  width: min(var(--article-content-width), 100%);
+  max-width: var(--article-content-width);
+  color: #26231f;
+  font-family: var(--article-font) !important;
+  font-size: var(--article-font-size) !important;
+  font-weight: 400;
+  line-height: var(--article-line-height) !important;
+  letter-spacing: .005em;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.rich-editor .ProseMirror p,
+.rich-editor .toastui-editor-contents p,
+.admin-preview-body p,
+.post-content p {
+  margin: var(--article-block-gap) 0 !important;
+  white-space: break-spaces;
+  line-height: var(--article-line-height) !important;
+}
+
+.rich-editor .ProseMirror :is(ul, ol, blockquote),
+.rich-editor .toastui-editor-contents :is(ul, ol, blockquote),
+.admin-preview-body :is(ul, ol, blockquote),
+.post-content :is(ul, ol, blockquote) {
+  line-height: var(--article-line-height) !important;
+}
+
+.rich-editor .ProseMirror > :first-child,
+.rich-editor .toastui-editor-contents > :first-child,
+.admin-preview-body > :first-child,
+.post-content > :first-child {
+  margin-top: 0 !important;
+}
+
+.rich-editor .ProseMirror > :last-child,
+.rich-editor .toastui-editor-contents > :last-child,
+.admin-preview-body > :last-child,
+.post-content > :last-child {
+  margin-bottom: 0 !important;
+}
+
+.rich-editor .ProseMirror :is(h1, h2, h3, h4, h5, h6),
+.rich-editor .toastui-editor-contents :is(h1, h2, h3, h4, h5, h6),
+.admin-preview-body :is(h1, h2, h3, h4, h5, h6),
+.post-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.65em 0 .65em !important;
+  border-bottom: 0;
+  color: #2d2d2d;
+  font-family: "Michel Sketch", "Comic Sans MS", "Trebuchet MS", sans-serif !important;
+  line-height: 1.08 !important;
+  letter-spacing: 0;
+}
+
+.rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 44px !important; }
+.rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 34px !important; }
+.rich-editor .ProseMirror h3, .rich-editor .toastui-editor-contents h3, .admin-preview-body h3, .post-content h3 { font-size: 27px !important; }
+.rich-editor .ProseMirror h4, .rich-editor .toastui-editor-contents h4, .admin-preview-body h4, .post-content h4 { font-size: 22px !important; }
+.rich-editor .ProseMirror h5, .rich-editor .toastui-editor-contents h5, .admin-preview-body h5, .post-content h5 { font-size: 19px !important; }
+.rich-editor .ProseMirror h6, .rich-editor .toastui-editor-contents h6, .admin-preview-body h6, .post-content h6 { font-size: 17px !important; }
+
+.rich-editor .ProseMirror :is(ul, ol, blockquote, pre, table),
+.rich-editor .toastui-editor-contents :is(ul, ol, blockquote, pre, table),
+.admin-preview-body :is(ul, ol, blockquote, pre, table),
+.post-content :is(ul, ol, blockquote, pre, table, .table-wrap, .code-block) {
+  margin: var(--article-block-gap) 0 !important;
+}
+
+.rich-editor .ProseMirror pre,
+.rich-editor .toastui-editor-contents pre,
+.admin-preview-body pre,
+.post-content pre {
+  margin: var(--article-block-gap) 0 !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+
+.rich-editor .ProseMirror :is(ul, ol),
+.rich-editor .toastui-editor-contents :is(ul, ol),
+.admin-preview-body :is(ul, ol),
+.post-content :is(ul, ol) {
+  padding-left: 1.65em;
+}
+
+.rich-editor .ProseMirror table,
+.rich-editor .toastui-editor-contents table,
+.admin-preview-body table,
+.post-content table {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+.rich-editor .ProseMirror li > p,
+.rich-editor .toastui-editor-contents li > p,
+.admin-preview-body li > p,
+.post-content li > p {
+  margin: .28em 0 !important;
+}
+
+.admin-preview-body img,
+.post-content img,
+.rich-editor .toastui-editor-contents img,
+.rich-editor .ProseMirror img {
+  box-sizing: border-box;
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
+.post-content img[hidden],
+.admin-preview-body img[hidden] {
+  display: none !important;
+}
+
+.post-content figure,
+.admin-preview-body figure {
+  max-width: 100%;
+  margin: 1.4em auto;
+  overflow: visible !important;
+}
+
+/* Configurable inline notes: visually quiet until the reader asks for them. */
+.article-annotation {
+  position: relative;
+  display: inline;
+  color: inherit;
+  cursor: help;
+  outline: none;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+/* Popovers may extend beyond the paper edge; only annotated articles opt out of clipping. */
+.post-content.has-inline-annotations,
+.post-paper.has-inline-annotations,
+.admin-preview-body.has-inline-annotations,
+.admin-preview-paper.has-inline-annotations {
+  overflow: visible !important;
+}
+
+.article-annotation:hover,
+.article-annotation:focus-visible,
+.article-annotation.is-open {
+  border-radius: .18em;
+  background: rgba(255, 221, 93, .32);
+  box-shadow: inset 0 -2px 0 #c58a24;
+}
+
+.article-annotation-popover {
+  position: absolute;
+  z-index: 45;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  display: none;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 230px;
+  max-width: min(420px, 80vw);
+  padding: 14px 16px;
+  transform: translateX(calc(-50% + var(--annotation-shift, 0px)));
+  border: 2px solid #2d2d2d;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #2d2d2d;
+  box-shadow: 4px 4px 0 #2d2d2d;
+  font-family: var(--article-font) !important;
+  font-size: 15px !important;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.55 !important;
+  letter-spacing: 0;
+  white-space: normal;
+  text-align: left;
+}
+
+.article-annotation:hover > .article-annotation-popover,
+.article-annotation:focus-within > .article-annotation-popover,
+.article-annotation.is-open > .article-annotation-popover {
+  display: grid;
+  gap: 7px;
+}
+
+.article-annotation-kicker {
+  color: #c15742;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.article-annotation-popover strong {
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.article-annotation-body {
+  white-space: pre-line;
+}
+
+.article-annotation-popover a {
+  justify-self: start;
+  color: #245ca8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.rich-editor .ProseMirror a[href*="#michel-note-v1:"],
+.rich-editor .toastui-editor-contents a[href*="#michel-note-v1:"] {
+  border-radius: .18em;
+  background: rgba(255, 221, 93, .3);
+  box-shadow: inset 0 -2px 0 #c58a24;
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (max-width: 720px), (hover: none) {
+  .article-annotation-popover {
+    position: fixed;
+    z-index: 120;
+    left: 14px;
+    right: 14px;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    transform: none;
+    box-shadow: 3px 4px 0 #2d2d2d;
+  }
+
+  body.has-open-article-annotation [data-assistant-launcher] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+.post-content .legacy-media,
+.admin-preview-body .legacy-media {
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 1.4em auto !important;
+  transform: none !important;
+  clip: auto !important;
+  clip-path: none !important;
+}
+
+.article-image-fallback {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  margin: 1.4em 0;
+  border: 2px dashed rgba(45, 45, 45, .35);
+  border-radius: 14px;
+  background: #fff8db;
+  color: #625c52;
+  font: 700 14px/1.5 "Michel Sketch", sans-serif;
+  text-align: center;
+}
+
+.pdf-attachment {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  box-sizing: border-box;
+  width: min(100%, 620px);
+  margin: 1.4em 0;
+  padding: 14px 16px;
+  border: 3px solid #2d2d2d;
+  border-radius: 8px;
+  background: #fffdf8;
+  box-shadow: 6px 7px 0 #2d2d2d;
+  color: #2d2d2d !important;
+  text-decoration: none !important;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.pdf-attachment:hover,
+.pdf-attachment:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 9px 0 #2d2d2d;
+}
+
+.pdf-attachment-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: #ff5a56;
+  color: #fff;
+  font: 800 13px/1 "Michel Sketch", sans-serif;
+}
+
+.pdf-attachment-copy {
+  min-width: 0;
+}
+
+.pdf-attachment-copy strong,
+.pdf-attachment-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-attachment-copy strong {
+  font: 700 16px/1.35 "Michel Sketch", sans-serif;
+}
+
+.pdf-attachment-copy small {
+  margin-top: 3px;
+  color: #7c7469;
+  font: 600 12px/1.35 "Michel Sketch", sans-serif;
+}
+
+.pdf-attachment-arrow {
+  font: 700 24px/1 "Michel Sketch", sans-serif;
+}
+
+@media (max-width: 760px) {
+  .pdf-attachment {
+    gap: 11px;
+    padding: 12px;
+    box-shadow: 4px 5px 0 #2d2d2d;
+  }
+
+  .pdf-attachment-mark {
+    width: 42px;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --article-font-size: 17px;
+    --article-line-height: 1.78;
+    --article-block-gap: 1em;
+  }
+
+  .rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 36px !important; }
+  .rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 30px !important; }
+}

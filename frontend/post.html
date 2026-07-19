@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="only light" />
+    <meta name="supported-color-schemes" content="light" />
+    <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>Blog · Michel Johnson</title>
+    <script src="./blog-theme.js?v=kenji-theme-v38-20260617"></script>
+    <link rel="stylesheet" href="./styles.css?v=sketch-pin-v31-20260720" />
+    <link rel="preload" href="./assets/fonts/noto-serif-sc-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./article-content.css?v=inline-notes-v3-20260719" />
+    <link rel="stylesheet" href="./mobile.css?v=assistant-compose-align-v28-20260717" />
+    <link rel="stylesheet" href="./responsive.css?v=assistant-auto-height-v30-20260717" />
+  </head>
+  <body class="post-body intro-done">
+    <main class="post-shell" aria-label="Blog article">
+      <div class="paper-noise" aria-hidden="true"></div>
+
+      <nav class="site-nav post-nav" aria-label="Primary navigation">
+        <a class="brand-lockup" href="./?home=1" aria-label="Michel Johnson home">
+          <span class="brand-dot"></span>
+          <span>Michel Johnson</span>
+        </a>
+        <div class="nav-links" aria-label="Sections">
+          <a href="./?home=1#apps">Apps</a>
+          <a href="./?home=1#blog">Blog</a>
+          <a href="./admin.html" data-create-link>Create</a>
+        </div>
+      </nav>
+
+      <article class="post-page" id="post-page">
+        <div class="post-rail">
+          <header class="post-hero">
+            <div class="post-top-row">
+              <a class="back-link" href="./?home=1#blog">Back to blog shelf</a>
+              <button class="post-edit-button" type="button" data-edit-post hidden>Edit</button>
+            </div>
+            <p class="post-kicker" id="post-meta">Loading note</p>
+            <div class="post-title-row">
+              <h1 id="post-title">Loading...</h1>
+              <button class="post-pin-button" type="button" data-pin-post aria-pressed="false" aria-label="Pin this post" title="Pin this post">
+                <span class="sketch-pushpin" aria-hidden="true">
+                  <i class="sketch-pushpin-cap"></i>
+                  <i class="sketch-pushpin-collar"></i>
+                  <i class="sketch-pushpin-needle"></i>
+                  <i class="sketch-pushpin-shadow"></i>
+                </span>
+              </button>
+            </div>
+            <p class="post-excerpt" id="post-excerpt"></p>
+          </header>
+          <button class="reader-assistant-launcher" type="button" data-assistant-launcher aria-expanded="false" aria-controls="reader-assistant">Ask AI</button>
+          <aside class="reader-assistant" id="reader-assistant" data-assistant-panel hidden aria-label="Article assistant">
+            <div
+              class="reader-assistant-resize-handle"
+              data-assistant-resize-handle
+              role="separator"
+              aria-label="Resize article assistant"
+              aria-orientation="vertical"
+              aria-valuemin="360"
+              aria-valuemax="560"
+              aria-valuenow="480"
+              tabindex="0"
+            ><span aria-hidden="true"></span></div>
+            <header>
+              <div><strong>Ask this article</strong><span>GLM-5.2</span></div>
+              <button type="button" data-assistant-close aria-label="Close assistant">×</button>
+            </header>
+            <div class="reader-assistant-messages" data-assistant-messages aria-live="polite"></div>
+            <form data-assistant-form>
+              <textarea data-assistant-input rows="1" maxlength="2000" placeholder="Ask about this article..."></textarea>
+              <button type="button" data-assistant-send aria-label="Send question" title="Send question">↑</button>
+            </form>
+          </aside>
+        </div>
+        <section class="post-paper" aria-label="Article content">
+          <div class="post-content" id="post-content"></div>
+          <footer class="post-footer">
+            <a id="source-link" href="./?home=1#blog">Open archived source</a>
+          </footer>
+        </section>
+      </article>
+    </main>
+
+    <div class="post-edit-modal" data-edit-modal hidden>
+      <form class="post-edit-dialog" data-edit-form>
+        <button class="post-edit-close" type="button" data-edit-close aria-label="Close edit login">×</button>
+        <h2 data-edit-heading>Edit this note</h2>
+        <p data-edit-copy>Enter the writer password to edit this post.</p>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit" data-edit-submit>Unlock editor</button>
+        <em data-edit-status aria-live="polite"></em>
+      </form>
+    </div>
+
+    <script src="./posts.js?v=kenji-theme-v38-20260617"></script>
+    <script src="./all-posts.js?v=kenji-theme-v38-20260617"></script>
+    <script src="./authored-posts.js?v=reader-edit-v29-20260703"></script>
+    <script src="./pinned-posts.js?v=sketch-pin-v1-20260720"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/build/highlight.min.js"></script>
+    <script src="./inline-annotations.js?v=inline-notes-v2-20260719"></script>
+    <script src="./post.js?v=sketch-pin-v3-20260720"></script>
+    <script src="./assistant.js?v=assistant-auto-height-v30-20260717"></script>
+  </body>
+</html>

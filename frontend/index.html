@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="only light" />
+    <meta name="supported-color-schemes" content="light" />
+    <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
+    <title>Michel Johnson · Personal Site</title>
+    <script>
+      (() => {
+        const path = window.location.pathname.split('/').pop() || 'index.html';
+        if (path !== 'index.html' && path !== '') return;
+        const params = new URLSearchParams(window.location.search);
+        const theme = params.get('theme');
+        if (theme === 'gallery' || theme === 'kenji') {
+          window.location.replace(`./kenji-exact-home.html${window.location.hash || ''}`);
+        }
+      })();
+    </script>
+    <style>
+      html[data-site-theme="gallery"] .gallery-profile-card canvas,
+      html[data-site-theme="gallery"] .gallery-profile-card [class*="mask"],
+      html[data-site-theme="gallery"] .gallery-profile-card [id*="mask"],
+      html[data-site-theme="gallery"] .gallery-profile-card [class*="canvas"],
+      html[data-site-theme="gallery"] .gallery-profile-card .gallery-source-title-fragments,
+      html[data-site-theme="gallery"] .gallery-profile-card .gallery-title-canvas,
+      html[data-site-theme="gallery"] .gallery-profile-card .gallery-title-bk,
+      html[data-site-theme="gallery"] .gallery-create-t,
+      html[data-site-theme="gallery"] .create_t {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+        mix-blend-mode: normal !important;
+      }
+      html[data-site-theme="gallery"] .gallery-profile-card,
+      html[data-site-theme="gallery"] .gallery-profile-card *,
+      html[data-site-theme="gallery"] #gallery-title {
+        background-color: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        mix-blend-mode: normal !important;
+      }
+    </style>
+    <script src="./blog-theme.js?v=kenji-theme-v38-20260617"></script>
+    <link rel="stylesheet" href="./styles.css?v=writing-activity-cell-gap-v23-20260716" />
+    <link rel="stylesheet" href="./mobile.css?v=sketch-mobile-v2-20260713" />
+    <link rel="stylesheet" href="./responsive.css?v=assistant-width-v19-20260716" />
+  </head>
+  <body class="intro-running">
+    <svg class="book-ink-filters" aria-hidden="true" focusable="false">
+      <filter id="book-ink-warp" x="-16%" y="-8%" width="132%" height="116%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035 0.72" numOctaves="2" seed="11" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.45" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <main class="intro-stage" aria-label="Opening insight animation">
+      <svg class="logo-svg" viewBox="0 0 1000 1000" role="img" aria-label="Animated insight logo"></svg>
+      <button class="skip-intro" type="button" aria-label="Skip opening animation">Skip</button>
+    </main>
+
+    <main class="site-shell" aria-label="Personal homepage">
+      <div class="paper-noise" aria-hidden="true"></div>
+
+      <nav class="site-nav" aria-label="Primary navigation">
+        <button class="brand-lockup" type="button" aria-label="Open Michel Johnson contact card" aria-haspopup="dialog" aria-controls="contact-modal" data-contact-open>
+          <span class="brand-dot"></span>
+          <span>Michel Johnson</span>
+        </button>
+        <div class="nav-links" aria-label="Sections">
+          <a href="#apps">Apps</a>
+          <a href="#blog">Blog</a>
+          <a href="./admin.html" data-create-link>Create</a>
+        </div>
+      </nav>
+
+      <section id="top" class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy-block">
+          <p class="eyebrow">personal website</p>
+          <h1 id="hero-title">Clear thinking for messy questions.</h1>
+          <p class="hero-copy">Apps, blog posts, experiments, and notes by Michel Johnson.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#apps">Explore apps</a>
+            <a class="button button-secondary" href="#blog">Read blog</a>
+          </div>
+        </div>
+
+        <aside class="sketch-card" aria-label="Site contents note">
+          <span class="tape tape-left" aria-hidden="true"></span>
+          <span class="tape tape-right" aria-hidden="true"></span>
+          <p class="card-label">site map</p>
+          <ul>
+            <li><span>01</span> apps I build</li>
+            <li><span>02</span> blog notes</li>
+            <li><span>03</span> tiny experiments</li>
+          </ul>
+          <p class="card-note">Michel turns messy ideas into usable things.</p>
+        </aside>
+      </section>
+
+      <section id="apps" class="content-section" aria-labelledby="apps-title">
+        <div class="section-heading">
+          <p class="section-kicker">Apps</p>
+          <h2 id="apps-title">Tools and products</h2>
+        </div>
+        <div class="card-grid apps-grid">
+          <a class="note-card note-yellow app-card-link" href="https://memflow.micheljohnson.top/" target="_blank" rel="noreferrer">
+            <span class="pin" aria-hidden="true"></span>
+            <p class="item-meta">Android App · AI Learning</p>
+            <h3>MemFlow</h3>
+            <p>A TikTok-style knowledge card app that turns fragmented notes into repeatable memory flows.</p>
+            <span class="app-card-cta">Open Website</span>
+          </a>
+          <article class="note-card note-white">
+            <span class="pin" aria-hidden="true"></span>
+            <p class="item-meta">App 02</p>
+            <h3>Coming soon</h3>
+            <p>A small utility for daily work and thinking.</p>
+          </article>
+          <article class="note-card note-red">
+            <span class="pin" aria-hidden="true"></span>
+            <p class="item-meta">Lab</p>
+            <h3>Experiments</h3>
+            <p>Prototypes, sketches, and half-finished ideas.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="blog" class="content-section blog-section" aria-labelledby="blog-title">
+        <div class="section-heading blog-heading">
+          <div>
+            <p class="section-kicker">Blog</p>
+            <h2 id="blog-title">Notes and diaries</h2>
+          </div>
+          <div class="blog-heading-actions">
+            <a class="section-link" href="#all-posts" data-all-posts-toggle aria-expanded="false">View all posts</a>
+          </div>
+        </div>
+
+        <div class="blog-shelf" aria-label="Selected blog posts from Michel Johnson's blog">
+          <div class="blog-column">
+            <p class="blog-group-label">Michel's notes</p>
+            <div class="blog-list">
+              <a href="./post.html?slug=michael-diary">
+                <span>Diary · 2026/05/08</span>
+                <strong>Michael Diary</strong>
+                <em>A build log about reviving MemFlow's article push system.</em>
+              </a>
+              <a href="./post.html?slug=machine-learning">
+                <span>Notes · 2025/09/16</span>
+                <strong>Machine Learning</strong>
+                <em>Machine learning notes following Andrew Ng's course.</em>
+              </a>
+              <a href="./post.html?slug=interesting-cv-papers">
+                <span>CV · 2025/10/10</span>
+                <strong>Interesting CV Papers</strong>
+                <em>A paper notebook around 3D understanding and video research.</em>
+              </a>
+              <a href="./post.html?slug=qa">
+                <span>Q&A · 2025/09/12</span>
+                <strong>Q&amp;A</strong>
+                <em>Interesting questions with Michel's current answers.</em>
+              </a>
+            </div>
+          </div>
+
+          <div class="blog-column blog-column-ai" aria-label="AI-written posts are folded">
+            <p class="blog-group-label">Folded</p>
+            <div class="ai-posts-collapsed" data-ai-posts-collapsed>
+              <strong>AI-written posts hidden</strong>
+              <em>Generated articles are folded away from the main shelf.</em>
+            </div>
+          </div>
+        </div>
+
+        <div class="all-posts-panel" id="all-posts" hidden>
+          <div class="all-posts-header">
+            <p class="blog-group-label">All posts</p>
+            <span id="all-posts-count" aria-live="polite"></span>
+          </div>
+          <div class="all-posts-list" id="all-posts-list" aria-label="All blog posts"></div>
+          <section class="writing-activity" id="writing-activity" aria-labelledby="writing-activity-title">
+            <div class="writing-activity-head">
+              <div>
+                <p class="section-kicker">Writing activity</p>
+                <h3 id="writing-activity-title">A year in words</h3>
+              </div>
+              <p data-activity-total aria-live="polite"></p>
+            </div>
+            <div class="writing-activity-scroll" tabindex="0" aria-label="Daily writing activity for the last year">
+              <div class="writing-activity-chart" data-activity-chart></div>
+            </div>
+            <div class="writing-activity-foot">
+              <span data-activity-range></span>
+              <span class="writing-activity-legend" aria-label="Writing volume scale">
+                Less
+                <i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i>
+                More
+              </span>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div class="contact-backdrop" data-contact-close hidden></div>
+    <section class="contact-modal" id="contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-title" aria-describedby="contact-desc" hidden>
+      <span class="tape tape-left" aria-hidden="true"></span>
+      <span class="tape tape-right" aria-hidden="true"></span>
+      <button class="contact-close" type="button" aria-label="Close contact card" data-contact-close>&times;</button>
+      <p class="section-kicker">Contact</p>
+      <h2 id="contact-title">Michel Johnson</h2>
+      <p class="contact-desc" id="contact-desc">Find me here. Tap a card to open or copy the handle.</p>
+      <div class="contact-list" aria-label="Michel Johnson contact links">
+        <a class="contact-item" href="https://github.com/Michel-Johnson" target="_blank" rel="noreferrer">
+          <span class="contact-icon" aria-hidden="true">
+            <svg class="contact-icon-svg icon-github" viewBox="0 0 24 24" focusable="false">
+              <path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" />
+            </svg>
+          </span>
+          <span><strong>GitHub</strong><em>github.com/Michel-Johnson</em></span>
+        </a>
+        <button class="contact-item" type="button" data-copy-contact="Michel-Johnson" data-copy-label="WeChat ID copied">
+          <span class="contact-icon" aria-hidden="true">
+            <svg class="contact-icon-svg icon-wechat" viewBox="0 0 24 24" focusable="false">
+              <path d="M16.5 10c3.038 0 5.5 2.015 5.5 4.5 0 1.397-.778 2.645-2 3.47V20l-1.964-1.178A6.649 6.649 0 0 1 16.5 19c-3.038 0-5.5-2.015-5.5-4.5s2.462-4.5 5.5-4.5" />
+              <path d="M11.197 15.698A8.008 8.008 0 0 1 9 16a8.008 8.008 0 0 1-2.612-.432L4 17v-2.801c-1.237-1.082-2-2.564-2-4.199 0-3.314 3.134-6 7-6 3.782 0 6.863 2.57 7 5.785v.233" />
+              <path d="M10 8h.01M7 8h.01M15 14h.01M18 14h.01" />
+            </svg>
+          </span>
+          <span><strong>WeChat</strong><em>Michel-Johnson</em></span>
+        </button>
+        <button class="contact-item" type="button" data-copy-contact="micheljohnsonofficial@gmail.com" data-copy-label="Gmail address copied">
+          <span class="contact-icon" aria-hidden="true">
+            <svg class="contact-icon-svg icon-gmail" viewBox="0 0 24 24" focusable="false">
+              <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.548l8.073-6.055C21.69 2.28 24 3.434 24 5.457z" />
+            </svg>
+          </span>
+          <span><strong>Gmail</strong><em>micheljohnsonofficial@gmail.com</em></span>
+        </button>
+        <a class="contact-item" href="https://www.linkedin.com/in/jiarui-shang-2837a039b" target="_blank" rel="noreferrer">
+          <span class="contact-icon" aria-hidden="true">
+            <svg class="contact-icon-svg icon-linkedin" viewBox="0 0 24 24" focusable="false">
+              <path d="M8 11v5" />
+              <path d="M8 8v.01" />
+              <path d="M12 16v-5" />
+              <path d="M16 16v-3a2 2 0 1 0-4 0" />
+              <path d="M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7" />
+            </svg>
+          </span>
+          <span><strong>LinkedIn</strong><em>linkedin.com/in/jiarui-shang-2837a039b</em></span>
+        </a>
+      </div>
+      <p class="contact-feedback" data-contact-feedback aria-live="polite"></p>
+    </section>
+
+    <script src="./posts.js?v=kenji-theme-v38-20260617"></script>
+    <script src="./all-posts.js?v=kenji-theme-v38-20260617"></script>
+    <script src="./authored-posts.js?v=reader-edit-v29-20260703"></script>
+    <script src="./pinned-posts.js?v=sketch-pin-v1-20260720"></script>
+    <script src="./home.js?v=sketch-pin-order-v25-20260720"></script>
+    <script type="importmap">
+      { "imports": { "three": "./node_modules/three/build/three.module.js" } }
+    </script>
+    <script type="module" src="./all-posts-3d.js?v=long-spine-readable-v24-20260718"></script>
+    <script src="./motion.js?v=gallery-no-title-mask-v85-20260611"></script>
+  </body>
+</html>

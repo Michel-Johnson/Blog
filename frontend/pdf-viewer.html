@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="only light" />
+    <meta name="theme-color" content="#fdfbf7" />
+    <title>PDF Preview · Michel Johnson</title>
+    <link rel="stylesheet" href="./pdf-viewer.css?v=pdf-preview-v1-20260716" />
+  </head>
+  <body>
+    <main class="pdf-reader" aria-label="PDF reader">
+      <header class="reader-header">
+        <a class="reader-brand" href="./?home=1#blog" aria-label="Back to blog">Michel Johnson</a>
+        <div class="reader-title">
+          <span>PDF preview</span>
+          <strong data-title>Loading document...</strong>
+        </div>
+        <a class="reader-open" data-open-original target="_blank" rel="noreferrer">Open original</a>
+      </header>
+
+      <nav class="reader-toolbar" aria-label="PDF controls">
+        <button type="button" data-previous aria-label="Previous page" title="Previous page">‹</button>
+        <label class="page-control">
+          <span class="sr-only">Page</span>
+          <input data-page-input type="number" min="1" value="1" inputmode="numeric" />
+          <span>/ <b data-page-count>0</b></span>
+        </label>
+        <button type="button" data-next aria-label="Next page" title="Next page">›</button>
+        <span class="toolbar-separator" aria-hidden="true"></span>
+        <button type="button" data-zoom-out aria-label="Zoom out" title="Zoom out">−</button>
+        <button class="zoom-value" type="button" data-fit-width aria-label="Fit page width" title="Fit page width"><span data-zoom>100%</span></button>
+        <button type="button" data-zoom-in aria-label="Zoom in" title="Zoom in">+</button>
+      </nav>
+
+      <section class="reader-stage" data-stage aria-busy="true">
+        <div class="reader-status" data-status>Loading PDF...</div>
+        <canvas data-canvas aria-label="PDF page"></canvas>
+      </section>
+    </main>
+    <script type="module" src="./pdf-viewer.js?v=pdf-response-guard-v2-20260716"></script>
+  </body>
+</html>
