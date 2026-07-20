@@ -48,6 +48,7 @@
   const excerpt = document.getElementById("post-excerpt");
   const content = document.getElementById("post-content");
   const sourceLink = document.getElementById("source-link");
+  const postFooter = document.getElementById("post-footer");
   const editButton = document.querySelector("[data-edit-post]");
   const pinButton = document.querySelector("[data-pin-post]");
   const editModal = document.querySelector("[data-edit-modal]");
@@ -603,11 +604,7 @@
   if (post.authored) {
     sourceLink.href = "./?home=1#blog";
     sourceLink.textContent = "Back to blog shelf";
-  } else if (post.source) {
-    sourceLink.href = post.source;
-    sourceLink.target = "_blank";
-    sourceLink.rel = "noreferrer";
-    sourceLink.textContent = "Open archived source";
+    postFooter.hidden = false;
   }
 
   editClose?.addEventListener("click", closeEditModal);
