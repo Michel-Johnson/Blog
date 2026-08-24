@@ -1,0 +1,49 @@
+/* Let the assistant layout stand on its own without a heavy outer frame. */
+html body .reader-assistant,
+html body #readerAssistant,
+html body .reader-assistant-panel {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+html body .reader-assistant::before,
+html body .reader-assistant::after,
+html body #readerAssistant::before,
+html body #readerAssistant::after,
+html body .reader-assistant-panel::before,
+html body .reader-assistant-panel::after {
+  content: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* The docked-left layout has a more specific shadow rule in styles.css. */
+html body.is-assistant-docked-left .reader-assistant.is-docked-left,
+html body.is-assistant-docked-left #reader-assistant.is-docked-left,
+html body .post-rail .reader-assistant {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Blend the article assistant into the same paper surface as the reader. */
+html body.post-body .reader-assistant {
+  background: #fefaf2 !important;
+}
+
+html body.post-body .reader-assistant > header {
+  position: relative;
+  border-bottom: 0 !important;
+  background:
+    linear-gradient(180deg, rgba(254, 250, 242, 0) 42%, #fefaf2 100%),
+    linear-gradient(90deg, #ffe66d 0%, #ffe66d 18%, #fefaf2 100%) !important;
+}
+
+html body.post-body .reader-assistant > header::after {
+  content: none;
+}

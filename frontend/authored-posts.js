@@ -22,3 +22,4 @@ window.MICHEL_AUTHORED_POSTS = [
     "status": "published"
   }
 ];
+window.MICHEL_HIDDEN_POSTS = [];

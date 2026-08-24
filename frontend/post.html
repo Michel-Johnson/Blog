@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="only light" />
     <meta name="supported-color-schemes" content="light" />
-    <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#fefaf2" media="(prefers-color-scheme: light)" />
     <meta http-equiv="Cache-Control" content="no-store" />
     <title>Blog · Michel Johnson</title>
     <script src="./blog-theme.js?v=kenji-theme-v38-20260617"></script>
-    <link rel="stylesheet" href="./styles.css?v=sketch-pin-v31-20260720" />
+    <link rel="stylesheet" href="./styles.css?v=assistant-stream-scroll-v48-20260822" />
+    <link rel="stylesheet" href="./assets/katex/katex.min.css?v=0.16.10-local-1" />
     <link rel="preload" href="./assets/fonts/noto-serif-sc-400.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="./article-content.css?v=inline-notes-v3-20260719" />
-    <link rel="stylesheet" href="./mobile.css?v=assistant-compose-align-v28-20260717" />
-    <link rel="stylesheet" href="./responsive.css?v=assistant-auto-height-v30-20260717" />
-  </head>
+    <link rel="stylesheet" href="./article-content.css?v=html-reference-type-v1-20260814" />
+    <link rel="stylesheet" href="./mobile.css?v=assistant-dock-v45-20260805" />
+    <link rel="stylesheet" href="./responsive.css?v=mobile-layout-fit-v28-20260822" />
+  <link rel="stylesheet" href="ask-ai-border-reset.css?v=borderless-v48-20260807">
+  <link rel="stylesheet" href="ask-ai-shell-borderless-v49.css?v=warm-paper-v57-20260814">
+</head>
   <body class="post-body intro-done">
     <main class="post-shell" aria-label="Blog article">
       <div class="paper-noise" aria-hidden="true"></div>
@@ -27,7 +30,7 @@
         <div class="nav-links" aria-label="Sections">
           <a href="./?home=1#apps">Apps</a>
           <a href="./?home=1#blog">Blog</a>
-          <a href="./admin.html" data-create-link>Create</a>
+          <a href="./private.html" data-private-link>Private</a>
         </div>
       </nav>
 
@@ -36,42 +39,66 @@
           <header class="post-hero">
             <div class="post-top-row">
               <a class="back-link" href="./?home=1#blog">Back to blog shelf</a>
-              <button class="post-edit-button" type="button" data-edit-post hidden>Edit</button>
-            </div>
-            <p class="post-kicker" id="post-meta">Loading note</p>
-            <div class="post-title-row">
-              <h1 id="post-title">Loading...</h1>
               <button class="post-pin-button" type="button" data-pin-post aria-pressed="false" aria-label="Pin this post" title="Pin this post">
                 <span class="sketch-pushpin" aria-hidden="true">
-                  <i class="sketch-pushpin-cap"></i>
-                  <i class="sketch-pushpin-collar"></i>
-                  <i class="sketch-pushpin-needle"></i>
+                  <svg class="sketch-pushpin-art" viewBox="0 0 64 64" focusable="false">
+                    <line class="sketch-pushpin-needle" x1="32" y1="40.2" x2="32" y2="50.4" />
+                    <line class="sketch-pushpin-needle-highlight" x1="31.2" y1="40.2" x2="31.7" y2="50.4" />
+                    <path class="sketch-pushpin-neck" d="M26.3 33.2 L27.9 38.1 L36.1 38.1 L37.7 33.2 Z" />
+                    <path class="sketch-pushpin-neck-highlight" d="M28.9 33.2 L30.0 38.1" />
+                    <ellipse class="sketch-pushpin-collar" cx="32" cy="40.2" rx="10.2" ry="5.1" transform="rotate(180 32 40.2)" />
+                    <ellipse class="sketch-pushpin-cap" cx="32" cy="29.8" rx="12.5" ry="10.7" transform="rotate(180 32 29.8)" />
+                    <ellipse class="sketch-pushpin-cap-rim" cx="32" cy="29.8" rx="10.1" ry="8.3" transform="rotate(180 32 29.8)" />
+                    <path class="sketch-pushpin-highlight" d="M39.8 27.9 Q32 22.1 30.3 23.9" />
+                  </svg>
                   <i class="sketch-pushpin-shadow"></i>
                 </span>
               </button>
+              <div class="post-top-actions">
+                <div
+                  class="html-reading-width-handle"
+                  data-html-reading-width-handle
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Adjust HTML article width"
+                  aria-orientation="horizontal"
+                  aria-valuemin="640"
+                  aria-valuemax="1200"
+                  aria-valuenow="960"
+                  hidden
+                >
+                  <span aria-hidden="true">↔</span>
+                  <output data-html-reading-width-output>960px</output>
+                </div>
+                <button class="post-edit-button" type="button" data-edit-post hidden>Edit</button>
+              </div>
             </div>
+            <p class="post-kicker" id="post-meta">Loading note</p>
+            <h1 id="post-title">Loading...</h1>
             <p class="post-excerpt" id="post-excerpt"></p>
           </header>
-          <button class="reader-assistant-launcher" type="button" data-assistant-launcher aria-expanded="false" aria-controls="reader-assistant">Ask AI</button>
+          <button class="reader-assistant-launcher reader-assistant-launcher--pet" type="button" data-assistant-launcher aria-expanded="false" aria-controls="reader-assistant" aria-label="Ask AI" title="Ask AI">
+            <img class="reader-assistant-pet-frame" data-assistant-pet-frame src="./assets/jerry-pet/idle/00.png?v=jerrydeskpet-v3-20260811" alt="" aria-hidden="true">
+            <span class="reader-assistant-pet-label">Ask AI</span>
+          </button>
           <aside class="reader-assistant" id="reader-assistant" data-assistant-panel hidden aria-label="Article assistant">
             <div
               class="reader-assistant-resize-handle"
               data-assistant-resize-handle
-              role="separator"
+              role="button"
               aria-label="Resize article assistant"
-              aria-orientation="vertical"
-              aria-valuemin="360"
-              aria-valuemax="560"
-              aria-valuenow="480"
+              aria-describedby="reader-assistant"
               tabindex="0"
             ><span aria-hidden="true"></span></div>
             <header>
-              <div><strong>Ask this article</strong><span>GLM-5.2</span></div>
+              <div class="assistant-header-context">
+                <strong class="assistant-header-quote" data-assistant-quote hidden></strong>
+              </div>
               <button type="button" data-assistant-close aria-label="Close assistant">×</button>
             </header>
             <div class="reader-assistant-messages" data-assistant-messages aria-live="polite"></div>
             <form data-assistant-form>
-              <textarea data-assistant-input rows="1" maxlength="2000" placeholder="Ask about this article..."></textarea>
+              <textarea data-assistant-input rows="1" maxlength="2000" enterkeyhint="send" placeholder="" aria-label="Ask AI"></textarea>
               <button type="button" data-assistant-send aria-label="Send question" title="Send question">↑</button>
             </form>
           </aside>
@@ -103,15 +130,14 @@
     <script src="./all-posts.js?v=kenji-theme-v38-20260617"></script>
     <script src="./authored-posts.js?v=reader-edit-v29-20260703"></script>
     <script src="./pinned-posts.js?v=sketch-pin-v1-20260720"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+    <script src="./assets/vendor/markdown-it.min.js?v=14.1.0-local-1"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+    <script src="./assets/katex/katex.min.js?v=0.16.10-local-1"></script>
+    <script src="./assets/katex/contrib/auto-render.min.js?v=0.16.10-local-1"></script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/build/highlight.min.js"></script>
-    <script src="./inline-annotations.js?v=inline-notes-v2-20260719"></script>
-    <script src="./post.js?v=sketch-pin-v3-20260720"></script>
-    <script src="./assistant.js?v=assistant-auto-height-v30-20260717"></script>
+    <script src="./inline-annotations.js?v=annotation-popover-fix-20260813"></script>
+  <script src="./post.js?v=stable-flow-images-local-v1-20260822"></script>
+    <script src="./assistant.js?v=assistant-stream-scroll-v47-20260822"></script>
   </body>
 </html>

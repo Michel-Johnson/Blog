@@ -31,13 +31,67 @@ If `ADMIN_PASSWORD` is missing, the server generates a temporary password and pr
 - Local draft cache is written to both `localStorage` and `sessionStorage` on editor changes, image layout changes, `pagehide`, `beforeunload`, and tab hide.
 - Selected images can be resized from 10% to 100% and positioned as centered, left float, right float, or full width.
 
+## Codex / Terminal CLI
+
+Install the single-file CLI on the same machine as the writer service:
+
+```bash
+sudo ./scripts/install-blog-cli.sh
+```
+
+The command talks to the same authenticated writer API as `admin.html`, so
+posts created by Codex follow the normal draft, publish, summary, annotation,
+pin, and delete workflow. Credentials are read only from the environment or a
+root-readable file; there is intentionally no `--password` argument.
+
+```bash
+export MICHEL_BLOG_URL=http://127.0.0.1:8787
+export MICHEL_BLOG_PASSWORD_FILE=/root/.config/michel-blog/password
+
+# Markdown draft
+michel-blog create \
+  --title "Training notes" \
+  --slug training-notes \
+  --category Notes \
+  --file ./training-notes.md
+
+# Raw HTML post
+michel-blog create \
+  --title "Interactive demo" \
+  --slug interactive-demo \
+  --format html \
+  --file ./interactive-demo.html \
+  --publish
+
+# Update, publish, inspect, and delete
+michel-blog update training-notes --file ./training-notes.md
+michel-blog publish training-notes --pin
+michel-blog get training-notes --output ./downloaded.md
+michel-blog list --status published
+michel-blog delete training-notes --yes
+```
+
+Use `--file -` to pipe generated content directly from Codex:
+
+```bash
+cat post.md | michel-blog create --title "New post" --file -
+```
+
+Markdown and HTML are stored losslessly. HTML is passed through the blog's raw
+HTML-capable Markdown renderer, while `contentFormat` records the source format
+for later editing and export.
+
 ## Generated Files
 
-- `content/drafts/*.md`: private drafts.
-- `content/posts/*.md`: published Markdown originals.
-- `uploads/YYYY/MM/*`: uploaded images.
-- `data/authored-posts.json`: source registry for authored posts.
-- `authored-posts.js`: public static bundle read by `index.html` and `post.html`.
+When `BLOG_DATA_ROOT` is set, all mutable files are stored below that independent directory:
+
+- `$BLOG_DATA_ROOT/content/drafts/*.md`: private drafts.
+- `$BLOG_DATA_ROOT/content/posts/*.md`: published Markdown originals.
+- `$BLOG_DATA_ROOT/uploads/YYYY/MM/*`: uploaded images.
+- `$BLOG_DATA_ROOT/data/authored-posts.json`: source registry for authored posts.
+- `$BLOG_DATA_ROOT/data/authored-posts.js`: generated public runtime bundle served by the Node service.
+
+Without `BLOG_DATA_ROOT`, the project root remains the compatibility default. Production should use the independent layout described in [draft-persistence.md](./draft-persistence.md).
 
 ## Editing Existing Markdown
 
@@ -73,8 +127,8 @@ The public sketch site stays static. It loads:
 - Run the admin server behind HTTPS.
 - Set a strong `ADMIN_PASSWORD` in the process environment.
 - Keep the server bound to `127.0.0.1` and expose it through nginx only at the desired admin path.
-- Do not let Hexo overwrite `/home/www/frontend`, because this writer updates frontend-owned files such as `authored-posts.js` and `uploads/`.
-- Back up `content/`, `uploads/`, `data/authored-posts.json`, and `authored-posts.js`.
+- Keep `BLOG_DATA_ROOT` outside `/home/www/frontend`; code deployment must never synchronize or delete it.
+- Back up the independent data root on a deliberately slower schedule. Live safety comes from atomic writes, revisions, editing leases, and browser recovery rather than frequent full backups.
 
 ## Suggested nginx Shape
 

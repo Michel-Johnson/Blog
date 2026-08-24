@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="only light" />
     <meta name="supported-color-schemes" content="light" />
-    <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#fefaf2" media="(prefers-color-scheme: light)" />
     <title>Michel Johnson · Personal Site</title>
     <script>
       (() => {
@@ -51,7 +51,7 @@
       }
     </style>
     <script src="./blog-theme.js?v=kenji-theme-v38-20260617"></script>
-    <link rel="stylesheet" href="./styles.css?v=writing-activity-cell-gap-v23-20260716" />
+    <link rel="stylesheet" href="./styles.css?v=selection-opacity-v40-20260815" />
     <link rel="stylesheet" href="./mobile.css?v=sketch-mobile-v2-20260713" />
     <link rel="stylesheet" href="./responsive.css?v=assistant-width-v19-20260716" />
   </head>
@@ -78,14 +78,14 @@
         <div class="nav-links" aria-label="Sections">
           <a href="#apps">Apps</a>
           <a href="#blog">Blog</a>
-          <a href="./admin.html" data-create-link>Create</a>
+          <a href="./private.html" data-private-link>Private</a>
         </div>
       </nav>
 
       <section id="top" class="hero" aria-labelledby="hero-title">
         <div class="hero-copy-block">
           <p class="eyebrow">personal website</p>
-          <h1 id="hero-title">Clear thinking for messy questions.</h1>
+          <h1 id="hero-title" aria-label="Clear thinking for messy questions."><span class="hwl">Clear thinking</span><span class="hwl">for messy</span><span class="hwl">questions.</span></h1>
           <p class="hero-copy">Apps, blog posts, experiments, and notes by Michel Johnson.</p>
           <div class="hero-actions">
             <a class="button button-primary" href="#apps">Explore apps</a>
@@ -140,48 +140,9 @@
             <p class="section-kicker">Blog</p>
             <h2 id="blog-title">Notes and diaries</h2>
           </div>
-          <div class="blog-heading-actions">
-            <a class="section-link" href="#all-posts" data-all-posts-toggle aria-expanded="false">View all posts</a>
-          </div>
         </div>
 
-        <div class="blog-shelf" aria-label="Selected blog posts from Michel Johnson's blog">
-          <div class="blog-column">
-            <p class="blog-group-label">Michel's notes</p>
-            <div class="blog-list">
-              <a href="./post.html?slug=michael-diary">
-                <span>Diary · 2026/05/08</span>
-                <strong>Michael Diary</strong>
-                <em>A build log about reviving MemFlow's article push system.</em>
-              </a>
-              <a href="./post.html?slug=machine-learning">
-                <span>Notes · 2025/09/16</span>
-                <strong>Machine Learning</strong>
-                <em>Machine learning notes following Andrew Ng's course.</em>
-              </a>
-              <a href="./post.html?slug=interesting-cv-papers">
-                <span>CV · 2025/10/10</span>
-                <strong>Interesting CV Papers</strong>
-                <em>A paper notebook around 3D understanding and video research.</em>
-              </a>
-              <a href="./post.html?slug=qa">
-                <span>Q&A · 2025/09/12</span>
-                <strong>Q&amp;A</strong>
-                <em>Interesting questions with Michel's current answers.</em>
-              </a>
-            </div>
-          </div>
-
-          <div class="blog-column blog-column-ai" aria-label="AI-written posts are folded">
-            <p class="blog-group-label">Folded</p>
-            <div class="ai-posts-collapsed" data-ai-posts-collapsed>
-              <strong>AI-written posts hidden</strong>
-              <em>Generated articles are folded away from the main shelf.</em>
-            </div>
-          </div>
-        </div>
-
-        <div class="all-posts-panel" id="all-posts" hidden>
+        <div class="all-posts-panel" id="all-posts">
           <div class="all-posts-header">
             <p class="blog-group-label">All posts</p>
             <span id="all-posts-count" aria-live="polite"></span>
@@ -265,12 +226,12 @@
     <script src="./posts.js?v=kenji-theme-v38-20260617"></script>
     <script src="./all-posts.js?v=kenji-theme-v38-20260617"></script>
     <script src="./authored-posts.js?v=reader-edit-v29-20260703"></script>
-    <script src="./pinned-posts.js?v=sketch-pin-v1-20260720"></script>
-    <script src="./home.js?v=sketch-pin-order-v25-20260720"></script>
-    <script type="importmap">
-      { "imports": { "three": "./node_modules/three/build/three.module.js" } }
-    </script>
-    <script type="module" src="./all-posts-3d.js?v=long-spine-readable-v24-20260718"></script>
+  <script src="./pinned-posts.js?v=pinned-plaque-v4-20260725"></script>
+  <script src="./home.js?v=spine-fit-v32-20260812"></script>
+    <script type="module" src="./all-posts-3d.js?v=modeled-cabinet-v22-20260822"></script>
     <script src="./motion.js?v=gallery-no-title-mask-v85-20260611"></script>
+    <script src="./handwriting-alphabet-data.js?v=hero-calibrated-v1-20260721"></script>
+    <script src="./handwriting-outline-data.js?v=caveat-svg-700-v1-20260723"></script>
+    <script src="./hero-write.js?v=outline-reveal-v34-20260723"></script>
   </body>
 </html>

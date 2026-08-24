@@ -94,10 +94,11 @@
 
   /* Article */
   .post-top-row {
+    position: relative;
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: max-content minmax(42px, 1fr) max-content;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
   }
 
   .post-top-row .back-link,
@@ -115,6 +116,7 @@
 
   .post-edit-button {
     margin: 0 !important;
+    justify-self: end;
   }
 
   .post-paper {
@@ -139,6 +141,8 @@
 
   .reader-assistant {
     inset: auto 0 0 !important;
+    left: 0 !important;
+    top: auto !important;
     width: 100vw !important;
     height: min(78dvh, 680px) !important;
     max-height: calc(100dvh - env(safe-area-inset-top) - 8px);
@@ -146,16 +150,22 @@
     border-bottom: 0;
     border-left: 0;
     border-radius: 24px 24px 0 0 !important;
-    box-shadow: 0 -7px 0 #2d2d2d !important;
+    box-shadow: 0 -3px 0 #2d2d2d !important;
     padding-bottom: env(safe-area-inset-bottom);
   }
 
   .reader-assistant header {
     padding-inline: 14px;
+    cursor: default;
+    touch-action: auto;
+  }
+
+  .reader-assistant-resize-handle {
+    display: none !important;
   }
 
   .reader-assistant form {
-    margin: 10px 12px;
+    margin: 10px 6px;
     grid-template-columns: minmax(0, 1fr) 42px;
     align-items: center;
     min-height: 58px;
