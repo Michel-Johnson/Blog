@@ -2,12 +2,19 @@
   const loginPanel = document.querySelector("[data-login-panel]");
   const loginForm = document.querySelector("[data-login-form]");
   const loginStatus = document.querySelector("[data-login-status]");
+  const draftInbox = document.querySelector("[data-draft-inbox]");
+  const draftInboxListEl = document.querySelector("[data-draft-inbox-list]");
+  const writerModeEl = document.querySelector("[data-writer-mode]");
   const workbench = document.querySelector("[data-workbench]");
   const logoutButton = document.querySelector("[data-logout]");
   const saveStatus = document.querySelector("[data-save-status]");
   const dropZone = document.querySelector("[data-drop-zone]");
   const richEditorEl = document.querySelector("[data-rich-editor]");
+  const htmlVisualEditor = document.querySelector("[data-html-visual-editor]");
   const undoButton = document.querySelector("[data-undo]");
+  const unpublishButton = document.querySelector("[data-unpublish]");
+  const publishButton = document.querySelector("[data-publish]");
+  const unpublishDialog = document.querySelector("[data-unpublish-dialog]");
   const deletePostButton = document.querySelector("[data-delete-post]");
   const deleteDialog = document.querySelector("[data-delete-dialog]");
   const deleteDialogTitle = document.querySelector("[data-delete-dialog-title]");
@@ -18,10 +25,14 @@
   const annotationSelected = document.querySelector("[data-annotation-selected]");
   const annotationRemoveButton = document.querySelector("[data-annotation-remove]");
   const annotationCancelButton = document.querySelector("[data-annotation-cancel]");
+  const annotationBody = annotationForm?.elements.body;
   const newDraftButton = document.querySelector("[data-new-draft]");
   const refreshDraftsButton = document.querySelector("[data-refresh-drafts]");
   const draftListEl = document.querySelector("[data-draft-list]");
   const excerptModeEl = document.querySelector("[data-excerpt-mode]");
+  const generateSummaryButton = document.querySelector("[data-generate-summary]");
+  const leaseTakeoverButton = document.querySelector("[data-lease-takeover]");
+  const postViewCountEl = document.querySelector("[data-post-view-count]");
   const mobileViewButtons = Array.from(document.querySelectorAll("[data-mobile-view-button]"));
   const fields = {
     title: document.querySelector("[data-post-title]"),
@@ -37,6 +48,8 @@
   const adminParams = new URLSearchParams(window.location.search);
   const editSlug = adminParams.get("edit") || "";
   const returnUrl = adminParams.get("return") || "";
+  const openDraftInbox = !editSlug && adminParams.get("drafts") === "1";
+  const createBlankPost = !editSlug && adminParams.get("new") === "1";
   let csrfToken = "";
   let richEditor = null;
   let syncingEditor = false;
@@ -44,8 +57,15 @@
   let selectedImageNode = null;
   let imageOverlay = null;
   let imageDrag = null;
+  let pendingImagePlacement = null;
+  let selectedLayoutSpacerId = "";
   let activeDraftId = "";
   let activeDraftSlug = editSlug || "";
+  let activeRevision = 0;
+  let activeLeaseHeld = false;
+  let leaseHeartbeatTimer = null;
+  let draftEventSource = null;
+  let applyingRemoteDraft = false;
   let autosaveTimer = null;
   let editorMathTimer = null;
   let mathOverlayLayer = null;
@@ -55,6 +75,9 @@
   let autosaveInFlight = false;
   let autosaveQueued = false;
   let deleteInProgress = false;
+  let suppressLocalDraftSave = false;
+  let publishInProgress = false;
+  let unpublishInProgress = false;
   let activePostStatus = "draft";
   let lastSavedSignature = "";
   let draftList = [];
@@ -63,20 +86,47 @@
   let activeImportedFromLegacy = false;
   let activeSourceMarkdownPath = "";
   let activeImportedFromMarkdown = false;
+  let activeContentFormat = "markdown";
+  let syncingHtmlEditor = false;
+  let htmlEditorResizeObserver = null;
+  let htmlEditorResizeFrame = 0;
+  const initializedHtmlEditorDocuments = new WeakSet();
+  const htmlEditorFontSize = 16.8;
+  const htmlEditorLineHeight = 32 / htmlEditorFontSize;
+  const htmlEditorContentWidth = 860;
   let excerptMode = "auto";
+  let summaryGenerationInProgress = false;
   let pendingAnnotation = null;
+  let pendingAnnotationOrigin = "author";
   let lastEditorSelection = null;
+  let editorSelectionActions = null;
+  let selectionExplainInProgress = false;
   let lastKnownMarkdown = "";
   const placedImages = new Map();
+
+  function resizeTitleField() {
+    if (!fields.title) return;
+    fields.title.style.height = "auto";
+    fields.title.style.height = `${Math.max(fields.title.scrollHeight, 1)}px`;
+  }
   const draftKey = "michel-sketch-admin-draft";
   const draftSessionKey = `${draftKey}:session`;
   const draftActiveKey = `${draftKey}:active`;
   const publishedBackupKey = `${draftKey}:last-published`;
-  const writerVersion = "article-parity-v58-20260712";
+  const writerClientKey = `${draftKey}:client-id`;
+  const writerClientId = window.sessionStorage.getItem(writerClientKey) || createDraftId();
+  window.sessionStorage.setItem(writerClientKey, writerClientId);
+  const draftChannel = typeof BroadcastChannel === "function"
+    ? new BroadcastChannel("michel-writer-draft-sync-v1")
+    : null;
+  const stableFlowImageMode = true;
+  const writerVersion = "stable-flow-images-local-v1-20260822";
   const defaultImageWidth = 42;
   const imageMoveSensitivity = 1;
   const imageResizeSensitivity = 0.75;
   const imageDragThreshold = 2;
+  const imageOffsetLimit = 1000000;
+  const defaultImageLayer = 2;
   const acceptedUploadTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
   const imageNamePattern = /\.(png|jpe?g|gif|webp|tiff?|heic|heif|bmp)$/i;
   let pendingImageViewport = null;
@@ -102,9 +152,28 @@
     if (node) node.textContent = text || "";
   }
 
+  function syncPostActions() {
+    if (unpublishButton) unpublishButton.hidden = activePostStatus !== "published";
+    if (publishButton) {
+      publishButton.hidden = false;
+      publishButton.textContent = activePostStatus === "published" ? "Update" : "Publish";
+      publishButton.setAttribute(
+        "aria-label",
+        activePostStatus === "published" ? "Update published article" : "Publish article"
+      );
+    }
+  }
+
   function setExcerptMode(mode) {
     excerptMode = mode === "manual" ? "manual" : "auto";
-    if (excerptModeEl) excerptModeEl.textContent = excerptMode === "manual" ? "Your summary" : "GLM auto summary";
+    if (excerptModeEl) excerptModeEl.textContent = excerptMode === "manual" ? "Your summary" : "Auto summary";
+  }
+
+  function setPostViewCount(value, visible = true) {
+    if (!postViewCountEl) return;
+    const count = Math.max(0, Number(value || 0));
+    postViewCountEl.textContent = `${count.toLocaleString()} ${count === 1 ? "view" : "views"}`;
+    postViewCountEl.hidden = !visible;
   }
 
   function clockTime(value = new Date()) {
@@ -146,9 +215,14 @@
     const alt = /\balt=(["'])(.*?)\1/i.exec(tag)?.[2] || "image";
     const style = /\bstyle=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
     const editorWidth = /\bdata-editor-width=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
-    const settings = imageSettingsFromStyleText(style, editorWidth);
-    if (settings.align === "free") rememberPlacedImage(src, { ...settings, alt });
-    return markdownImage(src, alt);
+    const reserve = imageReserve(/\bdata-image-reserve=(["'])(.*?)\1/i.exec(tag)?.[2] || 0);
+    const layer = imageLayer(/\bdata-image-layer=(["'])(.*?)\1/i.exec(tag)?.[2] || defaultImageLayer);
+    const settings = { ...imageSettingsFromStyleText(style, editorWidth), reserve, layer };
+    if (!stableFlowImageMode && (settings.align === "free" || reserve || layer !== defaultImageLayer)) {
+      rememberPlacedImage(src, { ...settings, alt });
+    }
+    const image = markdownImage(src, alt);
+    return stableFlowImageMode ? `\n\n${image}\n\n` : image;
   }
 
   function imageMarkdownSrc(line) {
@@ -168,9 +242,110 @@
     return kept.join("\n");
   }
 
+  function normalizeMathDelimitersForRichEditor(markdown) {
+    const protectLineBreaks = (tex) => String(tex || "").replace(/\\{2}(?!\\)/g, (match) => match + match);
+    return String(markdown || "")
+      .replace(/\$\$([\s\S]+?)\$\$/g, (_match, tex) => `$$${protectLineBreaks(tex)}$$`)
+      .replace(/\\\[([\s\S]+?)\\\]/g, (_match, tex) => `$$\n${protectLineBreaks(tex.trim())}\n$$`)
+      .replace(/\\\(([^\n]+?)\\\)/g, (_match, tex) => `$${tex.trim()}$`);
+  }
+
   function markdownForRichEditor(markdown) {
-    const normalized = String(markdown || "").replace(/<img\b[^>]*>/gi, (tag) => htmlImageTagToMarkdown(tag));
-    return preserveVisualIndentation(collapseAdjacentDuplicateImages(normalized));
+    const withSpacerMarkers = String(markdown || "").replace(
+      /<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi,
+      (tag) => stableFlowImageMode ? "" : layoutSpacerTagToEditorMarkdown(tag)
+    );
+    const normalized = withSpacerMarkers.replace(/<img\b[^>]*>/gi, (tag) => htmlImageTagToMarkdown(tag));
+    return preserveVisualIndentation(normalizeMathDelimitersForRichEditor(
+      separateStandaloneHtmlBreaks(collapseAdjacentDuplicateImages(normalized))
+    ));
+  }
+
+  function encodeIntentionalParagraphIndents(markdown) {
+    let fenced = false;
+    return String(markdown || "").split("\n").map((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      if (fence) {
+        fenced = !fenced;
+        return line;
+      }
+      if (fenced) return line;
+      return line.replace(/^\u3000{2}/, "&#12288;&#12288;");
+    }).join("\n");
+  }
+
+  function separateIntentionalParagraphs(markdown) {
+    let fenced = false;
+    const output = [];
+    String(markdown || "").split("\n").forEach((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      const intentionalParagraph = /^(?:(?:&#12288;|&#x3000;|\u3000)){2}/i.test(line);
+      if (!fenced && !fence && intentionalParagraph && output.length && output[output.length - 1].trim()) {
+        output.push("");
+      }
+      output.push(line);
+      if (fence) fenced = !fenced;
+    });
+    return output.join("\n");
+  }
+
+  function separateStandaloneHtmlBreaks(markdown) {
+    let fenced = false;
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    lines.forEach((line, index) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      output.push(line);
+      if (!fenced && !fence && /^\s*<br\s*\/?>\s*$/i.test(line)) {
+        const next = lines[index + 1] || "";
+        if (next.trim()) output.push("");
+      }
+      if (fence) fenced = !fenced;
+    });
+    return output.join("\n");
+  }
+
+  function separateLooseTextLines(markdown) {
+    let fenced = false;
+    let displayMath = false;
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    const isBlockLine = (line) => /^(?:\s*$|\s{4,}|\s*(?:#{1,6}\s|[-+*]\s|\d+[.)]\s|>|\|)|\s*<(?:\/?[a-z][^>]*|!--)|\s*(?:-{3,}|\*{3,}|_{3,})\s*$)/i.test(line);
+    lines.forEach((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      const mathFence = /^\s*\$\$\s*$/.test(line);
+      const previous = output[output.length - 1] || "";
+      const previousIsExplicitBreak = /(?: {2,}|\\)$/.test(previous);
+      if (
+        !fenced
+        && !displayMath
+        && !fence
+        && !mathFence
+        && line.trim()
+        && previous.trim()
+        && !previousIsExplicitBreak
+        && !isBlockLine(previous)
+        && !isBlockLine(line)
+      ) {
+        output.push("");
+      }
+      output.push(line);
+      if (fence) fenced = !fenced;
+      if (!fenced && mathFence) displayMath = !displayMath;
+    });
+    return output.join("\n");
+  }
+
+  function trimTrailingEmptyContent(value) {
+    let output = String(value || "").replace(/\r\n?/g, "\n");
+    let previous = "";
+    const trailingBreakLine = /(?:^|\n)[ \t]*(?:<br\s*\/?>|<(p|div)>[ \t]*(?:<br\s*\/?>)?[ \t]*<\/\1>)[ \t]*$/i;
+    while (output !== previous) {
+      previous = output;
+      output = output.replace(/[ \t]+$/gm, "").replace(/\n+$/, "");
+      output = output.replace(trailingBreakLine, "");
+    }
+    return output;
   }
 
   function preserveVisualIndentation(markdown) {
@@ -178,17 +353,118 @@
     return String(markdown || "").split("\n").map((line) => {
       if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
       if (fenced) return line;
-      let next = line;
-      if (/^ {1,3}\S/.test(next) && !/^ {1,3}(?:[-+*]\s|\d+[.)]\s|#{1,6}\s|>|\||<)/.test(next)) {
-        next = next.replace(/^ {1,3}/, (spaces) => `&#8288;${"&nbsp;".repeat(spaces.length)}`);
+      let next = line.replace(/^(?:&#(?:8288|x2060);)?(?:&nbsp;)+/i, "");
+      const leadingWhitespace = /^[ \t\u00a0\u200b\u2060]+(?=\S)/.exec(next)?.[0] || "";
+      const content = next.slice(leadingWhitespace.length);
+      const isMarkdownBlock = /^(?:[-+*]\s|\d+[.)]\s|#{1,6}\s|>|\||<)/.test(content);
+      if (leadingWhitespace && !isMarkdownBlock) {
+        next = content;
       }
-      return next.replace(/(?<=\S) {2,}(?=\S)/g, (spaces) => "&nbsp;".repeat(spaces.length));
+      return next.replace(/(?<=\S)[ \u00a0]{2,}(?=\S)/g, (spaces) => "&nbsp;".repeat(spaces.length));
     }).join("\n");
   }
 
-  function imageMarkupForStorage(src, alt, widthValue, align, xValue, yValue) {
-    if (align === "flow") return markdownImage(src, alt || "image");
-    return htmlImage(src, alt, widthValue, align, xValue, yValue);
+  function preserveTypedVisualWhitespace(event) {
+    if (event.inputType !== "insertText" || event.data !== " " || event.isComposing) return;
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed || !selection.anchorNode) return;
+    const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode
+      : selection.anchorNode.parentElement;
+    if (!element?.closest(".ProseMirror") || element.closest("pre, code")) return;
+    const beforeCaret = selection.anchorNode.nodeType === Node.TEXT_NODE
+      ? selection.anchorNode.nodeValue.slice(0, selection.anchorOffset)
+      : "";
+    if (beforeCaret && !/[ \u00a0]$/.test(beforeCaret)) return;
+    event.preventDefault();
+    document.execCommand("insertText", false, "\u00a0");
+  }
+
+  function textBeforeEditorCaret(block, selection) {
+    if (!block || !selection?.isCollapsed || !selection.anchorNode || !block.contains(selection.anchorNode)) return "";
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    range.setEnd(selection.anchorNode, selection.anchorOffset);
+    return range.toString().replace(/\u00a0/g, " ");
+  }
+
+  function removeEditorShortcutMarker(block, selection) {
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    range.setEnd(selection.anchorNode, selection.anchorOffset);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("delete", false);
+  }
+
+  function convertTypedMarkdownList(event) {
+    const isSpaceInput = (event.type === "beforeinput" && event.inputType === "insertText" && event.data === " ")
+      || (event.type === "keydown" && event.key === " " && !event.repeat);
+    if (!isSpaceInput || event.isComposing || !richEditor) return false;
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed || !selection.anchorNode) return false;
+    const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode
+      : selection.anchorNode.parentElement;
+    const block = element?.closest("p");
+    if (!block?.closest(".ProseMirror") || block.closest("pre, code, blockquote, td, th")) return false;
+
+    const beforeCaret = textBeforeEditorCaret(block, selection);
+    const inListItem = Boolean(block.closest("li"));
+    let command = "";
+    if (inListItem && /^\s*\[(?: |x|X)\]$/.test(beforeCaret)) {
+      command = "taskList";
+    } else if (!inListItem && /^\s{0,3}[-+*]$/.test(beforeCaret)) {
+      command = "bulletList";
+    } else if (!inListItem && /^\s{0,3}\d+[.)]$/.test(beforeCaret)) {
+      command = "orderedList";
+    }
+    if (!command) return false;
+
+    event.preventDefault();
+    removeEditorShortcutMarker(block, selection);
+    window.queueMicrotask(() => {
+      richEditor.exec(command);
+      syncFromRichEditor();
+      scheduleEditorMathRender(16);
+    });
+    return true;
+  }
+
+  function handleRichEditorBeforeInput(event) {
+    if (convertTypedMarkdownList(event)) return;
+    preserveTypedVisualWhitespace(event);
+  }
+
+  function handleRichEditorKeydown(event) {
+    if (
+      event.key === "Tab"
+      && !event.shiftKey
+      && !event.altKey
+      && !event.ctrlKey
+      && !event.metaKey
+      && !event.isComposing
+      && event.target?.closest?.(".ProseMirror")
+      && !event.target?.closest?.("pre, code")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      document.execCommand("insertText", false, "\u3000\u3000");
+      window.queueMicrotask(() => {
+        syncFromRichEditor();
+        scheduleEditorMathRender(16);
+      });
+      return;
+    }
+    convertTypedMarkdownList(event);
+  }
+
+  function imageMarkupForStorage(src, alt, widthValue, align, xValue, yValue, reserveValue = 0, layerValue = defaultImageLayer) {
+    if (stableFlowImageMode) return markdownImage(src, alt || "image");
+    const reserve = imageReserve(reserveValue);
+    const layer = imageLayer(layerValue);
+    if (align === "flow" && reserve === 0 && layer === defaultImageLayer) return markdownImage(src, alt || "image");
+    return htmlImage(src, alt, widthValue, align, xValue, yValue, reserve, layer);
   }
 
   function imageHtmlTagForStorage(tag) {
@@ -197,16 +473,22 @@
     const alt = /\balt=(["'])(.*?)\1/i.exec(tag)?.[2] || "image";
     const style = /\bstyle=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
     const editorWidth = /\bdata-editor-width=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
-    const settings = imageSettingsFromStyleText(style, editorWidth);
-    if (settings.align === "free") {
+    const reserve = imageReserve(/\bdata-image-reserve=(["'])(.*?)\1/i.exec(tag)?.[2] || 0);
+    const layer = imageLayer(/\bdata-image-layer=(["'])(.*?)\1/i.exec(tag)?.[2] || defaultImageLayer);
+    const settings = { ...imageSettingsFromStyleText(style, editorWidth), reserve, layer };
+    if (stableFlowImageMode) return `\n\n${markdownImage(src, alt)}\n\n`;
+    if (settings.align === "free" || settings.reserve || settings.layer !== defaultImageLayer) {
       rememberPlacedImage(src, { ...settings, alt });
-      return htmlImage(src, alt, settings.width, "free", settings.x, settings.y);
+      return htmlImage(src, alt, settings.width, settings.align, settings.x, settings.y, settings.reserve, settings.layer);
     }
     return markdownImage(src, alt);
   }
 
   function normalizeImageMarkupForStorage(markdown) {
-    const normalized = String(markdown || "").replace(/<img\b[^>]*>/gi, (tag) => imageHtmlTagForStorage(tag));
+    const withoutSpacers = stableFlowImageMode
+      ? String(markdown || "").replace(/<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi, "")
+      : normalizeLayoutSpacersForStorage(markdown);
+    const normalized = String(withoutSpacers || "").replace(/<img\b[^>]*>/gi, (tag) => imageHtmlTagForStorage(tag));
     return collapseAdjacentDuplicateImages(normalized);
   }
 
@@ -231,8 +513,22 @@
 
   function showWorkbench() {
     loginPanel.hidden = true;
+    connectDraftEvents();
+    if (openDraftInbox) {
+      workbench.hidden = true;
+      if (draftInbox) draftInbox.hidden = false;
+      document.body.classList.add("is-authenticated", "is-draft-inbox");
+      if (writerModeEl) writerModeEl.textContent = "Drafts";
+      if (logoutButton) logoutButton.hidden = false;
+      setStatus(saveStatus, "");
+      loadDrafts({ quiet: true });
+      return;
+    }
+    if (draftInbox) draftInbox.hidden = true;
     workbench.hidden = false;
     document.body.classList.add("is-authenticated");
+    document.body.classList.remove("is-draft-inbox");
+    if (writerModeEl) writerModeEl.textContent = "Editing";
     if (logoutButton) logoutButton.hidden = false;
     setSidebarOpen(true);
     if (window.matchMedia("(max-width: 820px)").matches) {
@@ -241,13 +537,16 @@
       setPreviewOpen(workbench.classList.contains("is-preview-open"));
     }
     if (!fields.date.value) fields.date.value = today();
+    syncPostActions();
     ensureRichEditor();
     if (editSlug) {
       loadPostForEditing(editSlug);
-    } else {
+    } else if (!createBlankPost) {
       restoreDraft();
+    } else {
+      ensureDraftId();
+      acquireDraftLease().catch((error) => setStatus(saveStatus, error.message));
     }
-    loadDrafts({ quiet: true });
     renderPreview();
     setStatus(saveStatus, editSlug ? "Loading post..." : "Ready");
     window.requestAnimationFrame(() => {
@@ -259,8 +558,9 @@
 
   function showLogin() {
     loginPanel.hidden = false;
+    if (draftInbox) draftInbox.hidden = true;
     workbench.hidden = true;
-    document.body.classList.remove("is-authenticated");
+    document.body.classList.remove("is-authenticated", "is-draft-inbox");
     if (logoutButton) logoutButton.hidden = true;
     setStatus(saveStatus, "Locked");
   }
@@ -268,17 +568,188 @@
   async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (csrfToken) headers.set("X-CSRF-Token", csrfToken);
-    const response = await fetch(path, {
-      ...options,
-      headers,
-      credentials: "same-origin"
-    });
+    let response;
+    try {
+      response = await fetch(path, {
+        ...options,
+        headers,
+        credentials: "same-origin"
+      });
+    } catch (error) {
+      const localWriter = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+      throw new Error(localWriter
+        ? "Writing service is offline. Reopen http://127.0.0.1:8787/admin.html"
+        : "Cannot reach the writing service. Please retry in a moment.", { cause: error });
+    }
     const type = response.headers.get("content-type") || "";
     const body = type.includes("application/json") ? await response.json() : await response.text();
     if (!response.ok) {
-      throw new Error(body && body.error ? body.error : `Request failed: ${response.status}`);
+      const error = new Error(body && body.error ? body.error : `Request failed: ${response.status}`);
+      error.status = response.status;
+      error.payload = body && typeof body === "object" ? body : {};
+      throw error;
     }
     return body;
+  }
+
+  function openDraftDatabase() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const request = window.indexedDB.open("michel-writer-sync-v1", 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains("drafts")) {
+          database.createObjectStore("drafts", { keyPath: "draftId" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
+  }
+
+  async function writeIndexedDraft(draft, options = {}) {
+    if (!draft?.draftId) return;
+    const database = await openDraftDatabase();
+    if (!database) return;
+    await new Promise((resolve) => {
+      const transaction = database.transaction("drafts", "readwrite");
+      transaction.objectStore("drafts").put({
+        ...draft,
+        revision: Math.max(0, Number(options.revision ?? draft.revision ?? activeRevision)),
+        baseRevision: Math.max(0, Number(options.baseRevision ?? activeRevision)),
+        pending: options.pending !== false,
+        savedAt: draft.savedAt || new Date().toISOString()
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = resolve;
+      transaction.onabort = resolve;
+    });
+    database.close();
+  }
+
+  async function readIndexedDraft(draftId) {
+    if (!draftId) return null;
+    const database = await openDraftDatabase();
+    if (!database) return null;
+    const result = await new Promise((resolve) => {
+      const request = database.transaction("drafts", "readonly").objectStore("drafts").get(draftId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => resolve(null);
+    });
+    database.close();
+    return result;
+  }
+
+  function setMirrorMode(isMirror, message = "") {
+    activeLeaseHeld = !isMirror;
+    document.body.classList.toggle("is-draft-mirror", isMirror);
+    if (leaseTakeoverButton) leaseTakeoverButton.hidden = !isMirror;
+    [fields.title, fields.slug, fields.category, fields.date, fields.tags, fields.excerpt, fields.markdown]
+      .filter(Boolean)
+      .forEach((field) => { field.readOnly = isMirror; });
+    if (richEditorEl) richEditorEl.inert = isMirror;
+    if (htmlVisualEditor) htmlVisualEditor.inert = isMirror;
+    if (generateSummaryButton) generateSummaryButton.disabled = isMirror;
+    [undoButton, unpublishButton, publishButton, deletePostButton]
+      .filter(Boolean)
+      .forEach((button) => { button.disabled = isMirror; });
+    if (message) setStatus(saveStatus, message);
+  }
+
+  function clearLeaseHeartbeat() {
+    window.clearInterval(leaseHeartbeatTimer);
+    leaseHeartbeatTimer = null;
+  }
+
+  async function acquireDraftLease(options = {}) {
+    if (!csrfToken || !activeDraftId || workbench.hidden) return false;
+    try {
+      const result = await api(`/api/admin/draft-leases/${encodeURIComponent(activeDraftId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: writerClientId, takeover: options.takeover === true })
+      });
+      setMirrorMode(false, options.takeover ? "Editing moved to this page" : "Ready");
+      clearLeaseHeartbeat();
+      leaseHeartbeatTimer = window.setInterval(() => {
+        acquireDraftLease().catch(() => setMirrorMode(true, "Editing connection paused"));
+      }, 5_000);
+      if (hasDraftContent()) scheduleAutosave();
+      return Boolean(result.lease?.acquired);
+    } catch (error) {
+      if (error.status === 423) {
+        clearLeaseHeartbeat();
+        setMirrorMode(true, "Live mirror · another page is editing");
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  function releaseDraftLease() {
+    clearLeaseHeartbeat();
+    if (!activeDraftId || !activeLeaseHeld) return;
+    fetch(`/api/admin/draft-leases/${encodeURIComponent(activeDraftId)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}) },
+      credentials: "same-origin",
+      keepalive: true,
+      body: JSON.stringify({ clientId: writerClientId })
+    }).catch(() => {});
+    activeLeaseHeld = false;
+  }
+
+  async function applyRemotePost(post, message = "Synced from another page") {
+    if (!post || !postMatchesActive(post)) return;
+    applyingRemoteDraft = true;
+    try {
+      setDraftFields(post);
+      saveLocalDraft({ quiet: true, broadcast: false, pending: false });
+      await writeIndexedDraft({ ...readDraft(), savedAt: new Date().toISOString() }, {
+        pending: false,
+        revision: activeRevision
+      });
+      setStatus(saveStatus, message);
+    } finally {
+      applyingRemoteDraft = false;
+    }
+  }
+
+  function postMatchesActive(post) {
+    const identities = new Set([post?.draftId, post?.slug, post?.originalSlug].filter(Boolean));
+    return identities.has(activeDraftId) || identities.has(activeDraftSlug);
+  }
+
+  async function refreshActiveDraftFromServer(identity = activeDraftId || activeDraftSlug) {
+    if (!identity || activeLeaseHeld) return;
+    try {
+      const result = await api(`/api/admin/posts/${encodeURIComponent(identity)}`);
+      await applyRemotePost(result.post || {});
+    } catch (_) {
+      // The draft may have been deleted or moved while this mirror was open.
+    }
+  }
+
+  function connectDraftEvents() {
+    if (draftEventSource) draftEventSource.close();
+    draftEventSource = new EventSource(`/api/admin/draft-events?clientId=${encodeURIComponent(writerClientId)}`);
+    draftEventSource.addEventListener("draft-sync", (event) => {
+      let payload;
+      try { payload = JSON.parse(event.data); } catch (_) { return; }
+      if (!payload || payload.clientId === writerClientId) return;
+      if (payload.type === "lease" && payload.draftId === activeDraftId) {
+        if (["takeover", "acquired"].includes(payload.action)) {
+          setMirrorMode(true, "Live mirror · editing moved to another page");
+        }
+        return;
+      }
+      if (payload.type === "draft-updated" && postMatchesActive(payload) && !activeLeaseHeld) {
+        refreshActiveDraftFromServer(payload.draftId || payload.slug);
+      }
+      if (payload.type === "draft-deleted" && postMatchesActive(payload)) {
+        setMirrorMode(true, "This draft was deleted in another page");
+      }
+    });
   }
 
   function isVisibleEditorRoot(node) {
@@ -322,11 +793,231 @@
   }
 
   function getMarkdown() {
-    return applyRememberedImageStyles(readRichEditorMarkdown());
+    if (activeContentFormat === "html") return fields.markdown.value || lastKnownMarkdown || "";
+    if (stableFlowImageMode) return normalizeImageMarkupForStorage(readRichEditorMarkdown());
+    return normalizeLayoutSpacersForStorage(applyRememberedImageStyles(readRichEditorMarkdown()));
   }
 
-  function setMarkdown(value) {
-    const markdown = String(value || "");
+  function htmlEditorDocument() {
+    return htmlVisualEditor?.contentDocument || null;
+  }
+
+  function scheduleHtmlVisualEditorResize() {
+    if (!htmlVisualEditor || activeContentFormat !== "html") return;
+    if (htmlEditorResizeFrame) window.cancelAnimationFrame(htmlEditorResizeFrame);
+    htmlEditorResizeFrame = window.requestAnimationFrame(() => {
+      htmlEditorResizeFrame = 0;
+      const doc = htmlEditorDocument();
+      if (!doc?.body) return;
+      const minimumHeight = 180;
+      const contentHeight = Math.ceil(Math.max(
+        doc.body.scrollHeight,
+        doc.body.getBoundingClientRect().height
+      ));
+      const nextHeight = Math.max(minimumHeight, contentHeight);
+      if (Math.abs(htmlVisualEditor.offsetHeight - nextHeight) > 1) {
+        htmlVisualEditor.style.height = `${nextHeight}px`;
+      }
+    });
+  }
+
+  function syncHtmlEditorFromVisual() {
+    if (syncingHtmlEditor || activeContentFormat !== "html") return;
+    const body = htmlEditorDocument()?.body;
+    if (!body) return;
+    fields.markdown.value = body.innerHTML;
+    lastKnownMarkdown = fields.markdown.value;
+    saveLocalDraft({ quiet: true });
+    renderPreview();
+    scheduleAutosave();
+    scheduleHtmlVisualEditorResize();
+  }
+
+  function prepareHtmlVisualEditor(doc) {
+    if (!doc?.body) return;
+    doc.documentElement.style.minHeight = "0";
+    doc.documentElement.style.background = "#fffefa";
+    doc.documentElement.style.overflow = "hidden";
+    doc.body.style.boxSizing = "border-box";
+    doc.body.style.minHeight = "0";
+    doc.body.style.margin = "0";
+    doc.body.style.padding = "44px 0 80px";
+    doc.body.style.outline = "none";
+    doc.body.style.overflow = "hidden";
+    doc.body.style.maxWidth = `${htmlEditorContentWidth}px`;
+    doc.body.style.marginInline = "auto";
+    doc.body.style.fontFamily = '"Michel Noto Serif SC", Georgia, serif';
+    doc.body.style.fontSize = `${htmlEditorFontSize}px`;
+    doc.body.style.lineHeight = String(htmlEditorLineHeight);
+    doc.body.style.letterSpacing = "normal";
+    doc.body.contentEditable = "true";
+    doc.body.spellcheck = true;
+    let readerTypography = doc.getElementById("michel-html-reader-typography");
+    if (!readerTypography) {
+      readerTypography = doc.createElement("style");
+      readerTypography.id = "michel-html-reader-typography";
+      doc.head.appendChild(readerTypography);
+    }
+    const serifRegular = new URL("./assets/fonts/noto-serif-sc-400.woff2", window.location.href).href;
+    const serifBold = new URL("./assets/fonts/noto-serif-sc-700.woff2", window.location.href).href;
+    readerTypography.textContent = `
+      @font-face {
+        font-family: "Michel Noto Serif SC";
+        src: url("${serifRegular}") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Michel Noto Serif SC";
+        src: url("${serifBold}") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      body > :is(article, main, section, div) {
+        font-family: inherit !important;
+        font-size: ${htmlEditorFontSize}px !important;
+        line-height: ${htmlEditorLineHeight} !important;
+        letter-spacing: normal !important;
+      }
+      body :is(.lead, .figure-intro) {
+        font-size: 1.05em !important;
+      }
+      body figcaption {
+        font-size: .87em !important;
+      }
+      body h1 { font-size: 33.68px !important; }
+      body h2 { font-size: 25.26px !important; }
+      body h3 { font-size: 19.65px !important; }
+      body h4 { font-size: 16.84px !important; }
+      body :is(p, li, blockquote, td, th) { line-height: ${htmlEditorLineHeight} !important; }
+    `;
+    if (initializedHtmlEditorDocuments.has(doc)) return;
+    initializedHtmlEditorDocuments.add(doc);
+    doc.addEventListener("input", syncHtmlEditorFromVisual);
+    doc.addEventListener("load", scheduleHtmlVisualEditorResize, true);
+    doc.addEventListener("click", (event) => {
+      if (event.target?.closest?.("a[href]")) event.preventDefault();
+    });
+    htmlEditorResizeObserver?.disconnect();
+    const ResizeObserverCtor = doc.defaultView?.ResizeObserver || window.ResizeObserver;
+    htmlEditorResizeObserver = new ResizeObserverCtor(scheduleHtmlVisualEditorResize);
+    htmlEditorResizeObserver.observe(doc.body);
+    doc.fonts?.ready?.then(scheduleHtmlVisualEditorResize).catch(() => {});
+  }
+
+  function renderHtmlVisualEditor(value) {
+    const doc = htmlEditorDocument();
+    if (!doc?.body) return;
+    prepareHtmlVisualEditor(doc);
+    syncingHtmlEditor = true;
+    doc.body.innerHTML = String(value || "");
+    syncingHtmlEditor = false;
+    scheduleHtmlVisualEditorResize();
+  }
+
+  function nodePathFromRoot(root, node) {
+    const path = [];
+    let current = node;
+    while (current && current !== root) {
+      const parent = current.parentNode;
+      if (!parent) return null;
+      path.unshift(Array.prototype.indexOf.call(parent.childNodes, current));
+      current = parent;
+    }
+    return current === root ? path : null;
+  }
+
+  function nodeFromRootPath(root, path) {
+    let current = root;
+    for (const index of path || []) {
+      if (!current?.childNodes?.length) return null;
+      current = current.childNodes[Math.min(index, current.childNodes.length - 1)];
+    }
+    return current;
+  }
+
+  function clampSelectionOffset(node, offset) {
+    if (!node) return 0;
+    return Math.max(0, Math.min(
+      Number(offset) || 0,
+      node.nodeType === Node.TEXT_NODE ? node.data.length : node.childNodes.length
+    ));
+  }
+
+  function captureEditorCaret() {
+    const root = editorContentRoot();
+    const selection = window.getSelection();
+    if (!root || !selection?.rangeCount) return null;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+    const startPath = nodePathFromRoot(root, range.startContainer);
+    const endPath = nodePathFromRoot(root, range.endContainer);
+    if (!startPath || !endPath) return null;
+    return {
+      startPath,
+      startOffset: range.startOffset,
+      endPath,
+      endOffset: range.endOffset,
+      scrollTop: root.closest(".toastui-editor-ww-container")?.scrollTop || 0
+    };
+  }
+
+  function restoreEditorCaret(bookmark) {
+    if (!bookmark) return;
+    window.requestAnimationFrame(() => {
+      const root = editorContentRoot();
+      const selection = window.getSelection();
+      if (!root || !selection) return;
+      const startNode = nodeFromRootPath(root, bookmark.startPath);
+      const endNode = nodeFromRootPath(root, bookmark.endPath);
+      if (!startNode || !endNode) return;
+      const range = document.createRange();
+      try {
+        range.setStart(startNode, clampSelectionOffset(startNode, bookmark.startOffset));
+        range.setEnd(endNode, clampSelectionOffset(endNode, bookmark.endOffset));
+      } catch (_) {
+        return;
+      }
+      root.focus({ preventScroll: true });
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const scroller = root.closest(".toastui-editor-ww-container");
+      if (scroller) scroller.scrollTop = bookmark.scrollTop;
+    });
+  }
+
+  function markdownEquivalentForEditor(left, right) {
+    const comparable = (value) => markdownForRichEditor(normalizeImageMarkupForStorage(String(value || "")))
+      .replace(/\r\n?/g, "\n")
+      .replace(/\n+$/g, "");
+    return comparable(left) === comparable(right);
+  }
+
+  window.MichelAssistantContext = function MichelAssistantContext() {
+    const proseMirror = richEditorEl?.querySelector(".toastui-editor-ww-container .ProseMirror");
+    const markdownEditor = richEditorEl?.querySelector(".toastui-editor-md-container .toastui-editor");
+    const selectionRoot = activeContentFormat === "html"
+      ? (htmlEditorDocument()?.body || fields.markdown)
+      : (proseMirror?.getClientRects().length ? proseMirror : markdownEditor);
+    return {
+      title: fields.title?.value?.trim() || "Untitled draft",
+      article: getMarkdown(),
+      selectionRoot: selectionRoot || fields.markdown,
+      url: window.location.href
+    };
+  };
+
+  function setMarkdown(value, options = {}) {
+    const caret = options.preserveCaret ? captureEditorCaret() : null;
+    const markdown = trimTrailingEmptyContent(value);
+    if (activeContentFormat === "html") {
+      fields.markdown.value = markdown;
+      lastKnownMarkdown = markdown;
+      renderHtmlVisualEditor(markdown);
+      return;
+    }
     rememberPlacedImagesFromMarkdown(markdown);
     const storageMarkdown = normalizeImageMarkupForStorage(markdown);
     fields.markdown.value = storageMarkdown;
@@ -340,11 +1031,16 @@
         capturePlacedImageNodes();
         schedulePlacedImageRestore();
         scheduleEditorMathRender();
+        restoreEditorCaret(caret);
       }, 80);
     }
   }
 
   function focusEditor() {
+    if (activeContentFormat === "html") {
+      htmlEditorDocument()?.body?.focus();
+      return;
+    }
     if (richEditor) {
       richEditor.focus();
       return;
@@ -389,6 +1085,8 @@
       syncFromRichEditor();
       window.setTimeout(decorateEditorAnnotations, 30);
     });
+    richEditorEl.addEventListener("beforeinput", handleRichEditorBeforeInput, true);
+    richEditorEl.addEventListener("keydown", handleRichEditorKeydown, true);
     richEditorEl.addEventListener("pointerdown", handleEditableMathPointer, true);
     richEditorEl.addEventListener("mousedown", handleEditableMathPointer, true);
     richEditorEl.addEventListener("click", handleEditableMathPointer, true);
@@ -438,8 +1136,9 @@
     const root = editorContentRoot();
     if (!root || !window.MichelAnnotations) return;
     root.querySelectorAll(`a[href*="${window.MichelAnnotations.PREFIX}"]`).forEach((link) => {
-      link.title = "Hover note - double-click to edit";
+      link.title = "点击预览、编辑或删除解释";
       link.dataset.inlineAnnotation = "true";
+      link.dataset.annotationOrigin = window.MichelAnnotations.decode(link.getAttribute("href"))?.origin || "author";
     });
   }
 
@@ -476,24 +1175,128 @@
     const existingLink = existingHref ? anchorNode.closest("a[href]") : null;
     const text = (existingLink?.textContent || selection.toString()).trim();
     if (!text) return null;
-    return { range: range.cloneRange(), text, oldHref: existingHref };
+    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 1 && rect.height > 3);
+    const rect = rects.at(-1) || range.getBoundingClientRect();
+    return { range: range.cloneRange(), text, oldHref: existingHref, rect };
+  }
+
+  function removeEditorSelectionActions() {
+    editorSelectionActions?.remove();
+    editorSelectionActions = null;
+  }
+
+  function editorSelectionContext(snapshot) {
+    const root = editorContentRoot();
+    const source = String(root?.innerText || "").replace(/\s+/g, " ").trim();
+    const target = String(snapshot?.text || "").replace(/\s+/g, " ").trim();
+    const index = source.indexOf(target);
+    return index < 0
+      ? { contextBefore: source.slice(0, 500), contextAfter: source.slice(500, 1000) }
+      : {
+          contextBefore: source.slice(Math.max(0, index - 500), index),
+          contextAfter: source.slice(index + target.length, index + target.length + 500)
+        };
+  }
+
+  function askAiAboutSelection(snapshot) {
+    removeEditorSelectionActions();
+    const context = editorSelectionContext(snapshot);
+    window.MichelAssistant?.activateSelection?.({
+      text: snapshot.text,
+      contextBefore: context.contextBefore,
+      contextAfter: context.contextAfter,
+      range: snapshot.range,
+      rects: snapshot.rect ? [snapshot.rect] : []
+    });
+  }
+
+  async function explainEditorSelection(snapshot, button) {
+    if (selectionExplainInProgress) return;
+    selectionExplainInProgress = true;
+    const originalLabel = button.textContent;
+    button.textContent = "正在简释...";
+    button.disabled = true;
+    const context = editorSelectionContext(snapshot);
+    try {
+      const result = await api("/api/admin/explain-selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: fields.title.value,
+          markdown: getMarkdown(),
+          selectedText: snapshot.text,
+          ...context
+        })
+      });
+      removeEditorSelectionActions();
+      openAnnotationDialog(snapshot, result.explanation);
+    } catch (error) {
+      setStatus(saveStatus, error.message);
+    } finally {
+      selectionExplainInProgress = false;
+      button.textContent = originalLabel;
+      button.disabled = false;
+    }
+  }
+
+  function showEditorSelectionActions(snapshot) {
+    if (!snapshot?.rect || snapshot.oldHref || annotationDialog?.open) {
+      removeEditorSelectionActions();
+      return;
+    }
+    removeEditorSelectionActions();
+    const actions = document.createElement("div");
+    actions.className = "editor-selection-actions";
+    actions.setAttribute("role", "toolbar");
+    actions.setAttribute("aria-label", "Selected text actions");
+    const askButton = document.createElement("button");
+    askButton.type = "button";
+    askButton.textContent = "问 AI";
+    const explainButton = document.createElement("button");
+    explainButton.type = "button";
+    explainButton.textContent = "AI 搜索并简释";
+    actions.append(askButton, explainButton);
+    document.body.appendChild(actions);
+    const box = actions.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - box.width - 12, Math.max(12, snapshot.rect.left));
+    const above = snapshot.rect.top - box.height - 10;
+    const top = above > 8 ? above : Math.min(window.innerHeight - box.height - 8, snapshot.rect.bottom + 10);
+    actions.style.left = `${left}px`;
+    actions.style.top = `${top}px`;
+    actions.addEventListener("pointerdown", (event) => event.preventDefault());
+    askButton.addEventListener("click", () => askAiAboutSelection(snapshot));
+    explainButton.addEventListener("click", () => explainEditorSelection(snapshot, explainButton));
+    editorSelectionActions = actions;
   }
 
   function rememberEditorSelection() {
     const snapshot = editorSelectionSnapshot();
-    if (snapshot) lastEditorSelection = snapshot;
+    if (snapshot) {
+      lastEditorSelection = snapshot;
+      showEditorSelectionActions(snapshot);
+    } else {
+      removeEditorSelectionActions();
+    }
   }
 
-  function openAnnotationDialog(snapshot = editorSelectionSnapshot() || lastEditorSelection) {
+  function resizeAnnotationBody() {
+    if (!annotationBody) return;
+    annotationBody.style.height = "0";
+    annotationBody.style.height = `${Math.max(72, annotationBody.scrollHeight)}px`;
+  }
+
+  function openAnnotationDialog(snapshot = editorSelectionSnapshot() || lastEditorSelection, initialPayload = null) {
     if (!annotationDialog || !annotationForm || !window.MichelAnnotations) return;
     if (!snapshot) {
       setStatus(saveStatus, "Select text in WYSIWYG mode, then choose the annotation tool");
       focusEditor();
       return;
     }
-    const payload = snapshot.oldHref ? window.MichelAnnotations.decode(snapshot.oldHref) : null;
+    const payload = initialPayload || (snapshot.oldHref ? window.MichelAnnotations.decode(snapshot.oldHref) : null);
+    removeEditorSelectionActions();
     lastEditorSelection = snapshot;
     pendingAnnotation = { ...snapshot, markdownBefore: getMarkdown() };
+    pendingAnnotationOrigin = payload?.origin || "author";
     annotationHeading.textContent = payload ? "Edit hover annotation" : "Explain selected text";
     annotationSelected.textContent = snapshot.text;
     annotationForm.elements.type.value = payload?.type || "note";
@@ -501,9 +1304,12 @@
     annotationForm.elements.body.value = payload?.body || "";
     annotationForm.elements.label.value = payload?.label || "";
     annotationForm.elements.url.value = payload?.url || "";
-    annotationRemoveButton.hidden = !payload;
+    annotationRemoveButton.hidden = !snapshot.oldHref;
     annotationDialog.showModal();
-    window.setTimeout(() => annotationForm.elements.body.focus(), 40);
+    window.setTimeout(() => {
+      resizeAnnotationBody();
+      annotationForm.elements.body.focus();
+    }, 40);
   }
 
   function replaceAnnotationHref(markdown, oldHref, newHref) {
@@ -551,14 +1357,16 @@
   }
 
   function syncFromRichEditor() {
-    if (!richEditor) return;
+    if (!richEditor || activeContentFormat === "html") return;
     if (sanitizeRichEditorImageHtmlText()) return;
-    capturePlacedImageNodes();
-    restorePlacedImageNodes();
+    if (!stableFlowImageMode) {
+      capturePlacedImageNodes();
+      restorePlacedImageNodes();
+    }
     fields.markdown.value = getMarkdown();
     lastKnownMarkdown = fields.markdown.value;
     disableNativeImageDrag();
-    schedulePlacedImageRestore();
+    if (!stableFlowImageMode) schedulePlacedImageRestore();
     saveLocalDraft({ quiet: true });
     renderPreview();
     scheduleEditorMathRender();
@@ -576,6 +1384,7 @@
     if (!/<img\b/i.test(markdown)) return false;
     const safeMarkdown = markdownForRichEditor(markdown);
     if (safeMarkdown === markdown) return false;
+    const caret = captureEditorCaret();
     fields.markdown.value = normalizeImageMarkupForStorage(applyRememberedImageStyles(safeMarkdown));
     lastKnownMarkdown = fields.markdown.value;
     syncingEditor = true;
@@ -587,6 +1396,7 @@
       disableNativeImageDrag();
       renderPreview();
       scheduleEditorMathRender();
+      restoreEditorCaret(caret);
     }, 80);
     return true;
   }
@@ -652,21 +1462,21 @@
   function selectionInsideAnyInlineMathSource(root) {
     const selection = window.getSelection?.();
     if (!selection || !selection.rangeCount || !root?.contains(selection.anchorNode)) return false;
-    const textNode = selection.anchorNode;
-    if (textNode.nodeType !== Node.TEXT_NODE || !textNodeIsEditableMathCandidate(textNode)) return false;
-    const offset = selection.anchorOffset;
-    return inlineMathMatches(textNode.nodeValue).some((match) => {
-      return offset > match.start && offset < match.end;
+    return editorMathBlocks(root).some((block) => {
+      const map = editorMathTextMap(block);
+      return inlineMathMatches(map.text).some((match) => {
+        const range = rangeFromEditorMathMap(map, match.start, match.end);
+        return range ? selectionIntersectsRange(range) : false;
+      });
     });
   }
 
   function selectionInsideAnyInlineMathLine(root) {
     const selection = window.getSelection?.();
     if (!selection || !selection.rangeCount || !root?.contains(selection.anchorNode)) return false;
-    const textNode = selection.anchorNode;
-    return textNode.nodeType === Node.TEXT_NODE
-      && textNodeIsEditableMathCandidate(textNode)
-      && inlineMathMatches(textNode.nodeValue).length > 0;
+    return editorMathBlocks(root).some((block) => {
+      return block.contains(selection.anchorNode) && inlineMathMatches(editorMathTextMap(block).text).length > 0;
+    });
   }
 
   function shouldHoldMathRenderForFormulaEdit(root) {
@@ -700,40 +1510,107 @@
     const matches = [];
     let index = 0;
     while (index < value.length) {
+      const bracketStart = value.indexOf("\\[", index);
       const parenStart = value.indexOf("\\(", index);
       const dollarStart = value.indexOf("$", index);
       let start = -1;
       let kind = "";
-      if (parenStart >= 0 && (dollarStart < 0 || parenStart < dollarStart)) {
-        start = parenStart;
-        kind = "paren";
-      } else {
-        start = dollarStart;
-        kind = "dollar";
-      }
+      const candidates = [
+        { start: bracketStart, kind: "bracket" },
+        { start: parenStart, kind: "paren" },
+        { start: dollarStart, kind: "dollar" }
+      ].filter((candidate) => candidate.start >= 0).sort((a, b) => a.start - b.start);
+      if (candidates.length) ({ start, kind } = candidates[0]);
       if (start < 0) break;
       if (kind === "dollar") {
-        if (value[start + 1] === "$" || isEscapedAt(value, start)) {
+        if (isEscapedAt(value, start)) {
           index = start + 1;
           continue;
         }
-        let end = value.indexOf("$", start + 1);
-        while (end >= 0 && (value[end + 1] === "$" || isEscapedAt(value, end))) {
-          end = value.indexOf("$", end + 1);
+        const display = value[start + 1] === "$";
+        const openLength = display ? 2 : 1;
+        const closeToken = display ? "$$" : "$";
+        let end = value.indexOf(closeToken, start + openLength);
+        while (end >= 0 && isEscapedAt(value, end)) {
+          end = value.indexOf(closeToken, end + closeToken.length);
         }
         if (end < 0) break;
-        const tex = value.slice(start + 1, end).trim();
-        if (tex && !tex.includes("\n")) matches.push({ start, end: end + 1, tex, display: false });
-        index = end + 1;
-      } else {
+        const tex = value.slice(start + openLength, end).trim();
+        if (tex && (display || !tex.includes("\n"))) {
+          matches.push({ start, end: end + closeToken.length, tex, display, closeLength: closeToken.length });
+        }
+        index = end + closeToken.length;
+      } else if (kind === "paren") {
         const end = value.indexOf("\\)", start + 2);
         if (end < 0) break;
         const tex = value.slice(start + 2, end).trim();
-        if (tex) matches.push({ start, end: end + 2, tex, display: false });
+        if (tex) matches.push({ start, end: end + 2, tex, display: false, closeLength: 2 });
+        index = end + 2;
+      } else {
+        const end = value.indexOf("\\]", start + 2);
+        if (end < 0) break;
+        const tex = value.slice(start + 2, end).trim();
+        if (tex) matches.push({ start, end: end + 2, tex, display: true, closeLength: 2 });
         index = end + 2;
       }
     }
     return matches;
+  }
+
+  const editorMathBlockSelector = "p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote";
+
+  function editorMathBlocks(root) {
+    return Array.from(root?.querySelectorAll?.(editorMathBlockSelector) || []).filter((block) => {
+      if (block.closest("pre, code, .katex, .writer-math-layer, .toastui-editor-md-preview")) return false;
+      const nested = Array.from(block.querySelectorAll(editorMathBlockSelector)).some((child) => {
+        return child !== block && inlineMathMatches(editorMathTextMap(child).text).length > 0;
+      });
+      return !nested && inlineMathMatches(editorMathTextMap(block).text).length > 0;
+    });
+  }
+
+  function editorMathTextMap(block) {
+    const segments = [];
+    let text = "";
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return textNodeIsEditableMathCandidate(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const start = text.length;
+      text += node.nodeValue;
+      segments.push({ node, start, end: text.length });
+    }
+    return { block, segments, text };
+  }
+
+  function pointFromEditorMathMap(map, offset, preferNext = false) {
+    if (!map?.segments?.length) return null;
+    const bounded = Math.max(0, Math.min(offset, map.text.length));
+    let segment = map.segments.find((item) => {
+      return preferNext ? bounded >= item.start && bounded < item.end : bounded > item.start && bounded <= item.end;
+    });
+    if (!segment) segment = bounded <= 0 ? map.segments[0] : map.segments[map.segments.length - 1];
+    return {
+      container: segment.node,
+      offset: Math.max(0, Math.min(segment.node.nodeValue.length, bounded - segment.start))
+    };
+  }
+
+  function rangeFromEditorMathMap(map, start, end) {
+    const startPoint = pointFromEditorMathMap(map, start, true);
+    const endPoint = pointFromEditorMathMap(map, end, false);
+    if (!startPoint || !endPoint) return null;
+    const range = document.createRange();
+    try {
+      range.setStart(startPoint.container, startPoint.offset);
+      range.setEnd(endPoint.container, endPoint.offset);
+      return range;
+    } catch (_) {
+      return null;
+    }
   }
 
   function selectionIntersectsRange(range) {
@@ -865,8 +1742,10 @@
       node.style.width = `${Math.max(24, rect.width + 4)}px`;
       node.style.height = `${Math.max(20, rect.height + 2)}px`;
     }
+    const normalizedTex = normalizeMathTexShortcuts(tex);
+    node.dataset.mathTex = normalizedTex;
     try {
-      window.katex.render(normalizeMathTexShortcuts(tex), node, {
+      window.katex.render(normalizedTex, node, {
         displayMode: display,
         throwOnError: false,
         strict: "ignore",
@@ -893,14 +1772,16 @@
     line.appendChild(document.createTextNode(text));
   }
 
-  function appendMathLineFormula(line, tex, editableTarget) {
+  function appendMathLineFormula(line, tex, editableTarget, display = false) {
     const node = document.createElement("span");
-    node.className = "writer-math-line-formula";
+    const normalizedTex = normalizeMathTexShortcuts(tex);
+    node.className = `writer-math-line-formula${display ? " is-display" : ""}`;
     node.setAttribute("role", "button");
     node.setAttribute("aria-label", "Edit formula");
+    node.dataset.mathTex = normalizedTex;
     try {
-      window.katex.render(normalizeMathTexShortcuts(tex), node, {
-        displayMode: false,
+      window.katex.render(normalizedTex, node, {
+        displayMode: display,
         throwOnError: false,
         strict: "ignore",
         output: "html"
@@ -917,12 +1798,10 @@
     return node;
   }
 
-  function placeInlineMathLineOverlay(layer, textNode, matches) {
-    if (!layer || !textNode || !matches.length) return null;
-    const fullRange = document.createRange();
-    fullRange.setStart(textNode, 0);
-    fullRange.setEnd(textNode, textNode.nodeValue.length);
-    const rect = rectFromRange(fullRange);
+  function placeInlineMathLineOverlay(layer, map, matches) {
+    if (!layer || !map?.segments?.length || !matches.length) return null;
+    const fullRange = rangeFromEditorMathMap(map, 0, map.text.length);
+    const rect = fullRange ? unionRects(Array.from(fullRange.getClientRects())) : map.block.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return null;
     const hostRect = layer.parentElement.getBoundingClientRect();
     const line = document.createElement("span");
@@ -935,17 +1814,13 @@
     let cursor = 0;
     const formulaNodes = [];
     matches.forEach((match) => {
-      appendMathLineSegment(line, textNode.nodeValue.slice(cursor, match.start));
-      const closeOffset = textNode.nodeValue.slice(match.start, match.end).startsWith("\\(") ? 2 : 1;
-      const editableTarget = {
-        container: textNode,
-        offset: Math.max(match.start + 1, match.end - closeOffset)
-      };
-      const formulaNode = appendMathLineFormula(line, match.tex, editableTarget);
+      appendMathLineSegment(line, map.text.slice(cursor, match.start));
+      const editableTarget = pointFromEditorMathMap(map, Math.max(match.start + 1, match.end - (match.closeLength || 1)));
+      const formulaNode = appendMathLineFormula(line, match.tex, editableTarget, match.display);
       if (formulaNode) formulaNodes.push({ node: formulaNode, target: editableTarget });
       cursor = match.end;
     });
-    appendMathLineSegment(line, textNode.nodeValue.slice(cursor));
+    appendMathLineSegment(line, map.text.slice(cursor));
     layer.appendChild(line);
     formulaNodes.forEach(({ node, target }) => {
       const formulaRect = node.getBoundingClientRect();
@@ -1005,20 +1880,19 @@
   }
 
   function renderInlineMathOverlays(root, layer, excludedTextNodes) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (excludedTextNodes.has(node) || !textNodeIsEditableMathCandidate(node)) return NodeFilter.FILTER_REJECT;
-        return inlineMathMatches(node.nodeValue).length ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-      }
-    });
     let rendered = 0;
-    while (walker.nextNode()) {
-      const textNode = walker.currentNode;
-      const matches = inlineMathMatches(textNode.nodeValue);
-      if (!matches.length) continue;
-      if (matches.some((match) => selectionInsideTextSpan(textNode, match.start, match.end))) continue;
-      if (placeInlineMathLineOverlay(layer, textNode, matches)) rendered += matches.length;
-    }
+    editorMathBlocks(root).forEach((block) => {
+      const map = editorMathTextMap(block);
+      if (!map.segments.length || map.segments.some((segment) => excludedTextNodes.has(segment.node))) return;
+      const matches = inlineMathMatches(map.text);
+      if (!matches.length) return;
+      const selectionTouchesFormula = matches.some((match) => {
+        const range = rangeFromEditorMathMap(map, match.start, match.end);
+        return range ? selectionIntersectsRange(range) : false;
+      });
+      if (selectionTouchesFormula) return;
+      if (placeInlineMathLineOverlay(layer, map, matches)) rendered += matches.length;
+    });
     return rendered;
   }
 
@@ -1056,9 +1930,11 @@
       typographer: true,
       breaks: true
     });
-    const rawHtml = md.render(normalizeMathShortcutsInMarkdown(preserveVisualIndentation(markdown)));
+    const rawHtml = md.render(normalizeMathShortcutsInMarkdown(
+      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(markdown))))
+    ));
     fields.preview.innerHTML = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
-      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "data-editor-width"]
+      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer"]
     }) : rawHtml;
     if (window.renderMathInElement) {
       window.renderMathInElement(fields.preview, {
@@ -1137,11 +2013,19 @@
       const maxLeft = Math.max(0, rootWidth - width - visualPadding);
       const left = Math.max(0, Math.min(maxLeft, rawLeft * scale));
       const top = Math.max(0, rawTop * scale);
+      const reserve = imageReserve(img.getAttribute("data-image-reserve") || 0) * scale;
       img.style.boxSizing = "border-box";
       img.style.width = `${Math.round(width)}px`;
       img.style.left = `${Math.round(left)}px`;
       img.style.top = `${Math.round(top)}px`;
       img.style.maxWidth = `calc(100% - ${visualPadding}px)`;
+      if (reserve > 0) {
+        const block = imageAnchorBlock(img);
+        if (block && block !== root) {
+          block.style.minHeight = `${Math.ceil(reserve)}px`;
+          block.classList.add("writer-image-reservation");
+        }
+      }
       const imgBottom = top + width / Math.max(0.2, img.naturalWidth / Math.max(1, img.naturalHeight || 1));
       bottom = Math.max(bottom, imgBottom);
     });
@@ -1166,7 +2050,10 @@
       tags: fields.tags.value.trim(),
       excerpt: cleanExcerptText(fields.excerpt.value),
       excerptMode,
-      markdown: getMarkdown()
+      contentFormat: activeContentFormat,
+      markdown: trimTrailingEmptyContent(activeContentFormat === "html"
+        ? getMarkdown()
+        : encodeIntentionalParagraphIndents(getMarkdown()))
     };
   }
 
@@ -1190,22 +2077,74 @@
     } catch (error) {
       setStatus(saveStatus, `Cache failed: ${error.message}`);
     }
+    writeIndexedDraft(draft, {
+      pending: options.pending !== false,
+      baseRevision: activeRevision,
+      revision: activeRevision
+    }).catch(() => {});
+    if (!applyingRemoteDraft && options.broadcast !== false) {
+      draftChannel?.postMessage({
+        type: "draft-local-update",
+        clientId: writerClientId,
+        draft: { ...draft, revision: activeRevision }
+      });
+    }
     return draft;
   }
 
-  function clearPublishedDraftCache(draftId) {
-    const id = String(draftId || "").trim();
+  if (draftChannel) {
+    draftChannel.addEventListener("message", (event) => {
+      const message = event.data;
+      if (message?.type !== "draft-local-update" || message.clientId === writerClientId) return;
+      if (!message.draft || activeLeaseHeld || !postMatchesActive(message.draft)) return;
+      applyRemotePost({ ...message.draft, status: "draft" }, "Live mirror · synced locally");
+    });
+  }
+
+  function draftIdentities(draft) {
+    if (!draft) return new Set();
+    if (typeof draft === "string") return new Set([draft.trim()].filter(Boolean));
+    return new Set([
+      draft.draftId,
+      draft.slug,
+      draft.originalSlug,
+      ...(Array.isArray(draft.aliases) ? draft.aliases : [])
+    ].map((value) => String(value || "").trim()).filter(Boolean));
+  }
+
+  function draftsShareIdentity(left, right) {
+    const leftIdentities = draftIdentities(left);
+    const rightIdentities = draftIdentities(right);
+    return Array.from(leftIdentities).some((identity) => rightIdentities.has(identity));
+  }
+
+  function clearPublishedDraftCache(publishedDraft, options = {}) {
+    const identities = draftIdentities(publishedDraft);
+    const itemPrefix = `${draftKey}:item:`;
+    const removedDraftIds = new Set();
+    const shouldRemove = (draft, storageKey = "") => {
+      if (options.removeScratch && storageKey === draftSlotKey("")) return true;
+      if (!draft) return Array.from(identities).some((identity) => storageKey === draftSlotKey(identity));
+      return draftsShareIdentity(draft, publishedDraft);
+    };
     try {
-      if (id) {
-        window.localStorage.removeItem(draftSlotKey(id));
-        window.sessionStorage.removeItem(draftSlotKey(id));
-      }
+      [window.localStorage, window.sessionStorage].forEach((storage) => {
+        const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean);
+        keys.forEach((key) => {
+          if (!key.startsWith(itemPrefix)) return;
+          if (!shouldRemove(parseDraft(storage.getItem(key)), key)) return;
+          removedDraftIds.add(key.slice(itemPrefix.length));
+          storage.removeItem(key);
+        });
+      });
       const cached = parseDraft(window.localStorage.getItem(draftKey));
-      if (!id || cached?.draftId === id) window.localStorage.removeItem(draftKey);
+      if (shouldRemove(cached, draftKey)) window.localStorage.removeItem(draftKey);
       const session = parseDraft(window.sessionStorage.getItem(draftSessionKey));
-      if (!id || session?.draftId === id) window.sessionStorage.removeItem(draftSessionKey);
-      if (!id || window.localStorage.getItem(draftActiveKey) === id) window.localStorage.removeItem(draftActiveKey);
-      if (!id || window.sessionStorage.getItem(draftActiveKey) === id) window.sessionStorage.removeItem(draftActiveKey);
+      if (shouldRemove(session, draftSessionKey)) window.sessionStorage.removeItem(draftSessionKey);
+      const localActive = String(window.localStorage.getItem(draftActiveKey) || "");
+      const sessionActive = String(window.sessionStorage.getItem(draftActiveKey) || "");
+      if (!localActive || identities.has(localActive) || removedDraftIds.has(localActive)) window.localStorage.removeItem(draftActiveKey);
+      if (!sessionActive || identities.has(sessionActive) || removedDraftIds.has(sessionActive)) window.sessionStorage.removeItem(draftActiveKey);
     } catch (_) {
       // Publishing succeeded; cache cleanup must not turn it into a failure.
     }
@@ -1221,6 +2160,7 @@
       tags: draft.tags || "",
       excerpt: draft.excerpt || "",
       excerptMode: draft.excerptMode || "auto",
+      contentFormat: draft.contentFormat || "markdown",
       markdown: draft.markdown || "",
       status
     });
@@ -1275,13 +2215,53 @@
     });
   }
 
+  function draftEditorHref(draft) {
+    const identity = String(draft?.draftId || draft?.slug || "").trim();
+    if (!identity) return "./admin.html?new=1";
+    if (draft?.status === "local") return `./admin.html?restore=${encodeURIComponent(identity)}`;
+    return `./admin.html?edit=${encodeURIComponent(identity)}`;
+  }
+
+  function renderDraftInboxList() {
+    if (!draftInboxListEl) return;
+    draftInboxListEl.replaceChildren();
+    if (!draftList.length) {
+      const empty = document.createElement("p");
+      empty.className = "draft-inbox-empty";
+      empty.textContent = "No drafts yet. Create a new article to start writing.";
+      draftInboxListEl.append(empty);
+      return;
+    }
+    draftList.forEach((draft) => {
+      const link = document.createElement("a");
+      link.className = "draft-inbox-card";
+      link.href = draftEditorHref(draft);
+      const title = document.createElement("strong");
+      title.textContent = draft.title || "Untitled";
+      const meta = document.createElement("span");
+      meta.textContent = `${draft.category || "Notes"} · ${draft.status || "draft"} · ${formatDraftStamp(draft.updatedAt || draft.createdAt || draft.savedAt)}`;
+      link.append(title, meta);
+      draftInboxListEl.append(link);
+    });
+  }
+
   async function loadDrafts(options = {}) {
-    if (!csrfToken || workbench.hidden) return;
+    if (!csrfToken || (workbench.hidden && draftInbox?.hidden !== false)) return;
     try {
       const result = await api("/api/admin/posts?status=draft");
       draftList = Array.isArray(result.posts) ? result.posts : [];
-      const localDraft = parseDraft(window.localStorage.getItem(draftSlotKey(activeDraftId)));
-      if (localDraft?.draftId && hasDraftContent(localDraft) && !draftList.some((draft) => draft.draftId === localDraft.draftId)) {
+      const publishedBackup = parseDraft(window.localStorage.getItem(publishedBackupKey));
+      if (publishedBackup) clearPublishedDraftCache(publishedBackup);
+      const cachedActiveId = openDraftInbox
+        ? window.sessionStorage.getItem(draftActiveKey) || window.localStorage.getItem(draftActiveKey) || ""
+        : activeDraftId;
+      const localDraft = parseDraft(window.localStorage.getItem(draftSlotKey(cachedActiveId)));
+      if (
+        localDraft?.draftId
+        && hasDraftContent(localDraft)
+        && !draftsShareIdentity(localDraft, publishedBackup)
+        && !draftList.some((draft) => draftsShareIdentity(draft, localDraft))
+      ) {
         draftList.unshift({
           ...localDraft,
           slug: localDraft.slug || "",
@@ -1291,6 +2271,7 @@
         });
       }
       renderDraftList();
+      renderDraftInboxList();
       if (!options.quiet) setStatus(saveStatus, `Loaded ${draftList.length} drafts`);
     } catch (error) {
       if (!options.quiet) setStatus(saveStatus, error.message);
@@ -1298,7 +2279,7 @@
   }
 
   function scheduleAutosave() {
-    if (!csrfToken || workbench.hidden || deleteInProgress) return;
+    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress || activePostStatus === "published") return;
     window.clearTimeout(autosaveTimer);
     autosaveTimer = window.setTimeout(() => {
       autosaveDraft({ quiet: true }).catch((error) => setStatus(saveStatus, error.message));
@@ -1320,8 +2301,8 @@
   }
 
   async function autosaveDraft(options = {}) {
-    const { quiet = true, force = false, summarize = false } = options;
-    if (!csrfToken || workbench.hidden || deleteInProgress) return null;
+    const { quiet = true, force = false, summarize = false, annotate = false } = options;
+    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress || activePostStatus === "published") return null;
     if (!force && !hasDraftContent()) return null;
     window.clearTimeout(autosaveTimer);
     if (autosaveInFlight) {
@@ -1347,7 +2328,10 @@
           draftId: current.draftId || ensureDraftId(),
           slug: current.slug || (!fields.slug.dataset.touched && current.title ? slugify(current.title) : activeDraftSlug || current.draftId || ""),
           status: "draft",
-          summarize
+          clientId: writerClientId,
+          baseRevision: activeRevision,
+          summarize,
+          annotate
         })
       });
       if (result.slug) {
@@ -1357,13 +2341,40 @@
           fields.slug.dataset.touched = "1";
         }
       }
+      activeRevision = Math.max(0, Number(result.revision || activeRevision));
       if (result.excerptMode) setExcerptMode(result.excerptMode);
       if (typeof result.excerpt === "string") fields.excerpt.value = result.excerpt;
+      const currentMarkdown = getMarkdown();
+      const serverMayRewriteMarkdown = summarize || annotate;
+      if (
+        serverMayRewriteMarkdown
+        && typeof result.markdown === "string"
+        && !markdownEquivalentForEditor(result.markdown, currentMarkdown)
+      ) {
+        setMarkdown(result.markdown, { preserveCaret: true });
+        renderPreview();
+        window.setTimeout(decorateEditorAnnotations, 40);
+      }
       lastSavedSignature = draftSignature(readDraft(), "draft");
-      saveLocalDraft({ quiet: true });
+      saveLocalDraft({ quiet: true, pending: false });
+      await writeIndexedDraft({ ...readDraft(), savedAt: new Date().toISOString() }, {
+        pending: false,
+        revision: activeRevision
+      });
       await loadDrafts({ quiet: true });
       setStatus(saveStatus, `${quiet ? "Autosaved" : "Draft saved"} ${clockTime()}${result.slug ? ` · ${result.slug}` : ""}`);
       return result;
+    } catch (error) {
+      if (error.status === 409 && error.payload?.post) {
+        setMirrorMode(true, "Conflict prevented · showing the server version");
+        await applyRemotePost(error.payload.post, "Conflict prevented · local recovery copy kept");
+        return null;
+      }
+      if (error.status === 423) {
+        setMirrorMode(true, "Live mirror · another page is editing");
+        return null;
+      }
+      throw error;
     } finally {
       autosaveInFlight = false;
       if (autosaveQueued) {
@@ -1386,18 +2397,20 @@
     return Number.isFinite(time) ? time : 0;
   }
 
-  function restoreDraft() {
+  async function restoreDraft() {
     try {
       const localDraft = parseDraft(window.localStorage.getItem(draftKey));
       const sessionDraft = parseDraft(window.sessionStorage.getItem(draftSessionKey));
       const activeId = window.sessionStorage.getItem(draftActiveKey) || window.localStorage.getItem(draftActiveKey) || "";
       const localSlotDraft = parseDraft(window.localStorage.getItem(draftSlotKey(activeId)));
       const sessionSlotDraft = parseDraft(window.sessionStorage.getItem(draftSlotKey(activeId)));
-      const candidates = [localDraft, sessionDraft, localSlotDraft, sessionSlotDraft].filter(Boolean);
+      const indexedDraft = await readIndexedDraft(activeId);
+      const candidates = [localDraft, sessionDraft, localSlotDraft, sessionSlotDraft, indexedDraft].filter(Boolean);
       const draft = candidates.sort((a, b) => draftTime(b) - draftTime(a))[0] || {};
       Object.entries(draft).forEach(([key, value]) => {
         if (fields[key] && typeof value === "string") fields[key].value = value;
       });
+      resizeTitleField();
       activeDraftId = typeof draft.draftId === "string" ? draft.draftId : "";
       activeOriginalSlug = typeof draft.originalSlug === "string" ? draft.originalSlug : "";
       activeLegacySource = typeof draft.legacySource === "string" ? draft.legacySource : "";
@@ -1405,11 +2418,14 @@
       setExcerptMode(draft.excerptMode || (draft.excerpt ? "manual" : "auto"));
       activeSourceMarkdownPath = typeof draft.sourceMarkdownPath === "string" ? draft.sourceMarkdownPath : "";
       activeImportedFromMarkdown = Boolean(draft.importedFromMarkdown || activeSourceMarkdownPath);
+      setContentFormat(draft.contentFormat);
       if (typeof draft.markdown === "string") setMarkdown(draft.markdown);
       activeDraftSlug = fields.slug.value.trim();
+      activeRevision = Math.max(0, Number(draft.revision || draft.baseRevision || 0));
       ensureDraftId();
       lastSavedSignature = "";
       if (draft.savedAt) setStatus(saveStatus, `Restored cache ${clockTime(new Date(draft.savedAt))}`);
+      await acquireDraftLease();
     } catch (_) {
       // Ignore malformed old drafts.
     }
@@ -1420,16 +2436,31 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : today();
   }
 
+  function setContentFormat(value) {
+    activeContentFormat = String(value || "").trim().toLowerCase() === "html" ? "html" : "markdown";
+    document.body.classList.toggle("is-html-source-editor", activeContentFormat === "html");
+    document.body.classList.toggle("is-html-editor", activeContentFormat === "html");
+    fields.markdown.setAttribute("aria-label", activeContentFormat === "html" ? "HTML source" : "Markdown source");
+    if (activeContentFormat === "html") {
+      window.requestAnimationFrame(() => renderHtmlVisualEditor(fields.markdown.value));
+    }
+  }
+
   function setDraftFields(post) {
     activePostStatus = post.status === "published" ? "published" : "draft";
+    syncPostActions();
     activeDraftId = post.draftId || (activePostStatus === "draft" ? createDraftId() : "");
+    activeRevision = Math.max(0, Number(post.revision || 0));
     activeDraftSlug = post.slug || "";
     activeOriginalSlug = post.originalSlug || post.slug || "";
     activeLegacySource = post.legacySource || "";
     activeImportedFromLegacy = Boolean(post.importedFromLegacy || post.legacySource);
     activeSourceMarkdownPath = post.sourceMarkdownPath || "";
     activeImportedFromMarkdown = Boolean(post.importedFromMarkdown || post.sourceMarkdownPath);
+    setContentFormat(post.contentFormat);
+    setPostViewCount(post.views, Boolean(post.slug && post.status !== "draft"));
     fields.title.value = post.title || "";
+    resizeTitleField();
     fields.slug.value = post.slug || "";
     fields.slug.dataset.touched = post.slug ? "1" : "";
     fields.category.value = post.category || "Notes";
@@ -1451,14 +2482,14 @@
     try {
       const result = await api(`/api/admin/posts/${encodeURIComponent(slug)}`);
       setDraftFields(result.post || {});
-      saveLocalDraft({ quiet: true });
+      saveLocalDraft({ quiet: true, broadcast: false, pending: false });
+      await acquireDraftLease();
       setStatus(saveStatus, result.post?.importedFromLegacy
         ? `Imported legacy Markdown: ${result.post?.slug || slug}`
         : `Editing: ${result.post?.slug || slug}`);
-      window.requestAnimationFrame(focusEditor);
+      window.requestAnimationFrame(() => fields.title.focus({ preventScroll: true }));
     } catch (error) {
       setStatus(saveStatus, error.message);
-      restoreDraft();
     }
   }
 
@@ -1473,6 +2504,7 @@
   }
 
   fields.title.addEventListener("input", () => {
+    resizeTitleField();
     if (!fields.slug.dataset.touched) fields.slug.value = slugify(fields.title.value);
     saveLocalDraft({ quiet: true });
     scheduleAutosave();
@@ -1499,6 +2531,54 @@
     saveLocalDraft({ quiet: true });
     scheduleAutosave();
   });
+
+  async function generateSummary() {
+    if (summaryGenerationInProgress) return;
+    const markdown = encodeIntentionalParagraphIndents(getMarkdown()).trim();
+    if (!markdown) {
+      setStatus(saveStatus, "Write the article before generating its summary");
+      focusEditor();
+      return;
+    }
+
+    summaryGenerationInProgress = true;
+    const idleLabel = generateSummaryButton?.innerHTML || '<span aria-hidden="true">✦</span> Summary';
+    if (generateSummaryButton) {
+      generateSummaryButton.disabled = true;
+      generateSummaryButton.setAttribute("aria-busy", "true");
+      generateSummaryButton.textContent = "Generating...";
+    }
+    setStatus(saveStatus, "Generating summary...");
+
+    try {
+      const result = await api("/api/admin/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: fields.title.value.trim() || "Untitled",
+          markdown
+        })
+      });
+      fields.excerpt.value = cleanExcerptText(result.summary || "");
+      fields.excerpt.dispatchEvent(new Event("input", { bubbles: true }));
+      setExcerptMode("auto");
+      saveLocalDraft({ quiet: true });
+      scheduleAutosave();
+      setStatus(saveStatus, "Summary generated");
+    } catch (error) {
+      setStatus(saveStatus, error.message || "Summary generation failed");
+    } finally {
+      summaryGenerationInProgress = false;
+      if (generateSummaryButton) {
+        generateSummaryButton.disabled = false;
+        generateSummaryButton.removeAttribute("aria-busy");
+        generateSummaryButton.innerHTML = idleLabel;
+      }
+    }
+  }
+
+  generateSummaryButton?.addEventListener("click", generateSummary);
+
   fields.markdown.addEventListener("input", () => {
     saveLocalDraft({ quiet: true });
     renderPreview();
@@ -1533,6 +2613,10 @@
     button.addEventListener("click", () => setMobileView(button.dataset.mobileViewButton));
   });
 
+  leaseTakeoverButton?.addEventListener("click", () => {
+    acquireDraftLease({ takeover: true }).catch((error) => setStatus(saveStatus, error.message));
+  });
+
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = new FormData(loginForm).get("password");
@@ -1553,12 +2637,15 @@
   });
 
   logoutButton?.addEventListener("click", async () => {
+    releaseDraftLease();
     try {
       await api("/api/admin/logout", { method: "POST" });
     } catch (_) {
       // Session may already be gone.
     }
     csrfToken = "";
+    draftEventSource?.close();
+    draftEventSource = null;
     showLogin();
   });
 
@@ -1566,6 +2653,7 @@
     if (!identity || identity === activeDraftId || identity === activeDraftSlug) return;
     try {
       await autosaveDraft({ quiet: true, force: false });
+      releaseDraftLease();
       await loadPostForEditing(identity);
     } catch (error) {
       setStatus(saveStatus, error.message);
@@ -1582,16 +2670,22 @@
   }
 
   function resetToBlankDraft(message = "New local draft") {
+    releaseDraftLease();
     activePostStatus = "draft";
+    syncPostActions();
     activeDraftId = createDraftId();
+    activeRevision = 0;
     activeDraftSlug = "";
     activeOriginalSlug = "";
+    setPostViewCount(0, false);
     activeLegacySource = "";
     activeImportedFromLegacy = false;
     activeSourceMarkdownPath = "";
     activeImportedFromMarkdown = false;
+    setContentFormat("markdown");
     lastSavedSignature = "";
     fields.title.value = "";
+    resizeTitleField();
     fields.slug.value = "";
     fields.slug.dataset.touched = "";
     fields.category.value = "Notes";
@@ -1604,10 +2698,14 @@
     selectedImageNode = null;
     imageOverlay?.classList.remove("is-active");
     saveLocalDraft({ quiet: true });
+    acquireDraftLease().catch((error) => setStatus(saveStatus, error.message));
     renderDraftList();
     renderPreview();
     setStatus(saveStatus, message);
-    window.requestAnimationFrame(() => fields.title.focus());
+    window.requestAnimationFrame(() => {
+      resizeTitleField();
+      fields.title.focus();
+    });
   }
 
   function confirmPostDeletion(post) {
@@ -1638,14 +2736,38 @@
   }
 
   function sameDeleteTarget(target) {
-    const identity = String(target?.draftId || target?.slug || "");
-    return Boolean(identity && (identity === activeDraftId || identity === activeDraftSlug));
+    return draftsShareIdentity(target, currentDeleteTarget());
+  }
+
+  function deleteTargetIdentities(target) {
+    const preferred = [
+      target?.draftId,
+      target?.slug,
+      target?.originalSlug,
+      ...(Array.isArray(target?.aliases) ? target.aliases : [])
+    ];
+    return Array.from(new Set(preferred.map((value) => String(value || "").trim()).filter(Boolean)));
+  }
+
+  async function deleteManagedPost(target) {
+    const identities = deleteTargetIdentities(target);
+    let missingError = null;
+    for (const identity of identities) {
+      try {
+        return await api(`/api/admin/posts/${encodeURIComponent(identity)}?clientId=${encodeURIComponent(writerClientId)}`, { method: "DELETE" });
+      } catch (error) {
+        if (!/not found|not managed/i.test(String(error?.message || ""))) throw error;
+        missingError = error;
+      }
+    }
+    if (target?.status === "published" && missingError) throw missingError;
+    return null;
   }
 
   async function requestDeletePost(target = currentDeleteTarget()) {
     if (deleteInProgress) return;
-    const identity = String(target?.draftId || target?.slug || "").trim();
-    if (!identity) {
+    const identities = deleteTargetIdentities(target);
+    if (!identities.length) {
       setStatus(saveStatus, "Nothing saved to delete");
       return;
     }
@@ -1658,19 +2780,30 @@
     setStatus(saveStatus, `Deleting ${target.title || "post"}...`);
     try {
       await waitForAutosaveIdle();
-      if (target.status !== "local") {
-        await api(`/api/admin/posts/${encodeURIComponent(identity)}`, { method: "DELETE" });
-      }
-      clearPublishedDraftCache(target.draftId || identity);
+      const result = await deleteManagedPost(target);
+      const deletedTarget = {
+        ...target,
+        ...(result?.deleted || {}),
+        aliases: Array.from(new Set([
+          ...identities,
+          ...(Array.isArray(target.aliases) ? target.aliases : []),
+          ...(Array.isArray(result?.deleted?.aliases) ? result.deleted.aliases : [])
+        ]))
+      };
+      if (isCurrent) suppressLocalDraftSave = true;
+      clearPublishedDraftCache(deletedTarget);
       draftList = draftList.filter((draft) => {
-        const draftIdentity = String(draft.draftId || draft.slug || "");
-        return draftIdentity !== identity;
+        return !draftsShareIdentity(draft, deletedTarget);
       });
-      if (isCurrent) resetToBlankDraft(`Deleted “${target.title || "Untitled"}”`);
-      else renderDraftList();
+      if (isCurrent) {
+        window.location.replace("./admin.html?drafts=1");
+        return;
+      }
+      renderDraftList();
       await loadDrafts({ quiet: true });
-      if (!isCurrent) setStatus(saveStatus, `Deleted “${target.title || "Untitled"}”`);
+      setStatus(saveStatus, `Deleted “${target.title || "Untitled"}”`);
     } catch (error) {
+      suppressLocalDraftSave = false;
       setStatus(saveStatus, error.message);
     } finally {
       deleteInProgress = false;
@@ -1680,7 +2813,9 @@
   function undoLastChange() {
     if (workbench.hidden) return;
     try {
-      if (richEditor && typeof richEditor.exec === "function") {
+      if (activeContentFormat === "html") {
+        htmlEditorDocument()?.execCommand("undo");
+      } else if (richEditor && typeof richEditor.exec === "function") {
         richEditor.exec("undo");
       } else {
         document.execCommand("undo");
@@ -1689,7 +2824,8 @@
       document.execCommand("undo");
     }
     window.setTimeout(() => {
-      if (richEditor) syncFromRichEditor();
+      if (activeContentFormat === "html") syncHtmlEditorFromVisual();
+      else if (richEditor) syncFromRichEditor();
       else {
         saveLocalDraft({ quiet: true });
         renderPreview();
@@ -1702,54 +2838,156 @@
     normalizeExcerptField();
     saveLocalDraft();
     try {
-      await autosaveDraft({ quiet: false, force: true, summarize: true });
+      await autosaveDraft({ quiet: false, force: true, summarize: true, annotate: true });
     } catch (error) {
       setStatus(saveStatus, error.message);
     }
   }
 
   async function publishPost() {
+    if (publishInProgress) return;
+    publishInProgress = true;
+    const publishLabel = activePostStatus === "published" ? "Update" : "Publish";
+    if (publishButton) {
+      publishButton.disabled = true;
+      publishButton.setAttribute("aria-busy", "true");
+      publishButton.textContent = "Publishing...";
+    }
+    window.clearTimeout(autosaveTimer);
+    autosaveQueued = false;
     normalizeExcerptField();
-    const cachedDraft = saveLocalDraft();
     setStatus(saveStatus, "Publishing...");
+    let failed = false;
     try {
+      await waitForAutosaveIdle();
+      const cachedDraft = saveLocalDraft();
+      const publishedDraftId = cachedDraft?.draftId || activeDraftId;
       const result = await api("/api/admin/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload("published"), summarize: true })
+        body: JSON.stringify({
+          ...payload("published"),
+          clientId: writerClientId,
+          baseRevision: activeRevision,
+          summarize: true,
+          annotate: true,
+          deferEnrichment: true
+        })
       });
       if (result.excerptMode) setExcerptMode(result.excerptMode);
       if (typeof result.excerpt === "string") fields.excerpt.value = result.excerpt;
       if (result.slug) activeDraftSlug = result.slug;
+      activeRevision = Math.max(0, Number(result.revision || activeRevision));
       lastSavedSignature = draftSignature(readDraft(), "published");
-      window.localStorage.setItem(publishedBackupKey, JSON.stringify({
+      const publishedSnapshot = {
         ...cachedDraft,
+        slug: result.slug || cachedDraft.slug,
         publishedAt: new Date().toISOString(),
         publishedUrl: result.url
-      }));
-      clearPublishedDraftCache(cachedDraft?.draftId || activeDraftId);
+      };
+      window.localStorage.setItem(publishedBackupKey, JSON.stringify(publishedSnapshot));
+      clearPublishedDraftCache(publishedSnapshot, { removeScratch: true });
+      draftList = draftList.filter((draft) => {
+        if (publishedDraftId && draft.draftId === publishedDraftId) return false;
+        return !result.slug || draft.slug !== result.slug;
+      });
+      activePostStatus = "published";
+      releaseDraftLease();
+      syncPostActions();
       activeDraftId = "";
+      renderDraftList();
       await loadDrafts({ quiet: true });
-      setStatus(saveStatus, `Published: ${result.url} · removed from drafts`);
+      setStatus(saveStatus, result.enrichmentQueued
+        ? `Published: ${result.url} · AI details updating in background`
+        : `Published: ${result.url} · removed from drafts`);
       if (returnUrl) {
         window.location.href = returnUrl;
       } else {
         window.open(result.url, "_blank", "noopener");
       }
     } catch (error) {
+      failed = true;
       setStatus(saveStatus, error.message);
+    } finally {
+      publishInProgress = false;
+      if (publishButton) {
+        publishButton.disabled = false;
+        publishButton.removeAttribute("aria-busy");
+        publishButton.textContent = failed ? publishLabel : "Update";
+      }
+      if (failed) scheduleAutosave();
+    }
+  }
+
+  function confirmUnpublish() {
+    if (!unpublishDialog || typeof unpublishDialog.showModal !== "function") {
+      return Promise.resolve(window.confirm("Move this article back to drafts? It will disappear from the public blog."));
+    }
+    unpublishDialog.returnValue = "";
+    return new Promise((resolve) => {
+      unpublishDialog.addEventListener("close", () => resolve(unpublishDialog.returnValue === "confirm"), { once: true });
+      unpublishDialog.showModal();
+    });
+  }
+
+  async function unpublishPost() {
+    if (unpublishInProgress || activePostStatus !== "published") return;
+    if (!(await confirmUnpublish())) return;
+    unpublishInProgress = true;
+    const originalLabel = unpublishButton?.textContent || "Move to drafts";
+    if (unpublishButton) {
+      unpublishButton.disabled = true;
+      unpublishButton.setAttribute("aria-busy", "true");
+      unpublishButton.textContent = "Moving...";
+    }
+    window.clearTimeout(autosaveTimer);
+    autosaveQueued = false;
+    normalizeExcerptField();
+    setStatus(saveStatus, "Moving article to drafts...");
+    try {
+      await waitForAutosaveIdle();
+      const result = await api("/api/admin/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload("draft"),
+          clientId: writerClientId,
+          baseRevision: activeRevision,
+          summarize: false,
+          annotate: false
+        })
+      });
+      activePostStatus = "draft";
+      activeDraftId = result.draftId || activeDraftId || createDraftId();
+      activeRevision = Math.max(0, Number(result.revision || activeRevision));
+      activeDraftSlug = result.slug || activeDraftSlug;
+      lastSavedSignature = draftSignature(readDraft(), "draft");
+      window.localStorage.removeItem(publishedBackupKey);
+      saveLocalDraft({ quiet: true });
+      syncPostActions();
+      window.location.replace("./admin.html?drafts=1");
+    } catch (error) {
+      setStatus(saveStatus, error.message);
+    } finally {
+      unpublishInProgress = false;
+      if (unpublishButton) {
+        unpublishButton.disabled = false;
+        unpublishButton.removeAttribute("aria-busy");
+        unpublishButton.textContent = originalLabel;
+      }
     }
   }
 
   undoButton?.addEventListener("click", undoLastChange);
+  unpublishButton?.addEventListener("click", unpublishPost);
   deletePostButton?.addEventListener("click", () => requestDeletePost());
   newDraftButton?.addEventListener("click", newDraft);
   refreshDraftsButton?.addEventListener("click", () => loadDrafts({ quiet: false }));
   document.querySelector("[data-save-draft]")?.addEventListener("click", saveDraft);
-  document.querySelector("[data-publish]")?.addEventListener("click", publishPost);
+  publishButton?.addEventListener("click", publishPost);
 
   function insertMarkdown(text) {
-    if (richEditor) {
+    if (richEditor && activeContentFormat !== "html") {
       if (typeof richEditor.insertText === "function") {
         richEditor.insertText(text);
         syncFromRichEditor();
@@ -1804,19 +3042,238 @@
     return false;
   }
 
-  function insertUploadedImage(result, file) {
+  function restorePendingImageSelection(pending) {
+    const selection = pending?.selection;
+    if (!richEditor || !Array.isArray(selection) || selection.length < 2) return;
+    try {
+      richEditor.setSelection(selection[0], selection[1]);
+    } catch (_) {
+      // Keep the browser caret if this editor build cannot restore its selection.
+    }
+  }
+
+  function insertUploadedImage(result, file, mode = "flow", pending = null) {
     const markdown = imageMarkdown(result, file);
     const alt = result.alt || (file?.name || "image").replace(/\.[^.]+$/, "");
+    restorePendingImageSelection(pending);
     if (result.url && insertEditorImage(result.url, alt)) {
       saveLocalDraft({ quiet: true });
       scheduleAutosave();
       renderPreview();
-      window.setTimeout(() => selectImageBySrc(result.url), 160);
+      window.setTimeout(() => {
+        selectImageBySrc(result.url);
+        if (mode === "free" && selectedImageNode) {
+          const position = imageAbsolutePositionFromNode(selectedImageNode);
+          replaceSelectedImage(defaultImageWidth, "free", position.x, position.y, 0, defaultImageLayer);
+        }
+      }, 180);
       return;
     }
     appendMarkdownBlock(markdown);
-    if (result.url) window.setTimeout(() => selectImageBySrc(result.url), 160);
+    if (result.url) window.setTimeout(() => {
+      selectImageBySrc(result.url);
+      if (mode === "free" && selectedImageNode) {
+        const position = imageAbsolutePositionFromNode(selectedImageNode);
+        replaceSelectedImage(defaultImageWidth, "free", position.x, position.y, 0, defaultImageLayer);
+      }
+    }, 180);
   }
+
+  function layoutSpacerMarkupWithId(idValue, heightValue) {
+    const height = Math.max(0, Math.min(imageOffsetLimit, Math.round(Number(heightValue) || 0)));
+    if (height < 8) return "";
+    const id = String(idValue || `spacer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`).replace(/[^a-z0-9_-]/gi, "");
+    return `<div class="writer-layout-spacer" data-writer-spacer="${id}" style="height:${height}px"></div>`;
+  }
+
+  function layoutSpacerMarkup(heightValue) {
+    return layoutSpacerMarkupWithId("", heightValue);
+  }
+
+  function layoutSpacerSource(id, height) {
+    return `/assets/writer-spacer.svg?writer-spacer=${encodeURIComponent(id)}--${imageReserve(height)}`;
+  }
+
+  function layoutSpacerFromSrc(src) {
+    try {
+      const url = new URL(src, window.location.href);
+      const token = url.searchParams.get("writer-spacer") || "";
+      const compact = /^(.*)--(\d+)$/.exec(token);
+      const id = compact?.[1] || token;
+      const height = imageReserve(compact?.[2] || url.searchParams.get("height") || 0);
+      return id && height ? { id, height } : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function layoutSpacerTagToEditorMarkdown(tag) {
+    const id = /\bdata-writer-spacer=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
+    const height = imageReserve(/\bheight\s*:\s*(\d+(?:\.\d+)?)px/i.exec(tag)?.[1] || 0);
+    if (!id || !height) return "";
+    const src = layoutSpacerSource(id, height);
+    rememberPlacedImage(src, { alt: "layout spacer", width: 100, align: "flow", x: 0, y: 0, reserve: height, layer: 1 });
+    return markdownImage(src, "layout spacer");
+  }
+
+  function normalizeLayoutSpacersForStorage(markdown) {
+    const replaceSource = (match, src) => {
+      const spacer = layoutSpacerFromSrc(src);
+      return spacer ? layoutSpacerMarkupWithId(spacer.id, spacer.height) : match;
+    };
+    return String(markdown || "")
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt, src) => replaceSource(match, src))
+      .replace(/<img\b[^>]*src=(["'])(.*?)\1[^>]*>/gi, (match, quote, src) => replaceSource(match, src));
+  }
+
+  function selectedImageOccupiedHeight() {
+    if (!selectedImageNode || !selectedImage) return 0;
+    const rect = selectedImageNode.getBoundingClientRect();
+    const reserve = imageReserve(selectedImage.reserve || 0);
+    if (selectedImage.align === "free") {
+      return Math.max(reserve, imageOffset(selectedImage.y || 0) + rect.height);
+    }
+    return rect.height + reserve + 16;
+  }
+
+  function temporaryImageSrc(src) {
+    try {
+      const url = new URL(src, window.location.href);
+      url.searchParams.set("writer-move", `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+      return url.href;
+    } catch (_) {
+      const separator = String(src).includes("?") ? "&" : "?";
+      return `${src}${separator}writer-move=${Date.now()}`;
+    }
+  }
+
+  function replaceFirstImageSource(markdown, srcs, replacement) {
+    let changed = false;
+    const next = markdown
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt, src) => {
+        if (changed || !srcs.has(src)) return match;
+        changed = true;
+        return replacement;
+      })
+      .replace(/<img\b[^>]*src=(["'])(.*?)\1[^>]*>/gi, (match, quote, src) => {
+        if (changed || !srcs.has(src)) return match;
+        changed = true;
+        return replacement;
+      });
+    return { markdown: next, changed };
+  }
+
+  function relocateSelectedImage(pending, mode) {
+    const source = pending?.source;
+    if (!source?.src) return;
+    const tempSrc = temporaryImageSrc(source.src);
+    const spacer = layoutSpacerMarkup(pending.occupiedHeight || 0);
+    restorePendingImageSelection(pending);
+    if (!insertEditorImage(tempSrc, source.alt || "image")) {
+      setStatus(saveStatus, "Could not move the image to that text position.");
+      return;
+    }
+    window.setTimeout(() => {
+      let markdown = getMarkdown();
+      const oldResult = replaceFirstImageSource(markdown, imageSrcCandidates(source.src), spacer);
+      if (!oldResult.changed) {
+        setStatus(saveStatus, "Could not preserve the image's old position.");
+        return;
+      }
+      markdown = oldResult.markdown;
+      const nextAlign = mode === "free" ? "free" : "flow";
+      const tempResult = replaceFirstImageSource(
+        markdown,
+        imageSrcCandidates(tempSrc),
+        imageMarkupForStorage(source.src, source.alt || "image", source.width || defaultImageWidth, nextAlign, 0, 0, 0, source.layer || defaultImageLayer)
+      );
+      if (!tempResult.changed) {
+        setStatus(saveStatus, "Could not finish moving the image.");
+        return;
+      }
+      setMarkdown(tempResult.markdown);
+      saveLocalDraft({ quiet: true });
+      scheduleAutosave();
+      renderPreview();
+      window.setTimeout(() => selectImageBySrc(source.src), 180);
+      setStatus(saveStatus, "Image moved. The old position remains as a removable layout spacer.");
+    }, 120);
+  }
+
+  function ensureImagePlacementChooser() {
+    let chooser = document.querySelector("[data-image-placement-chooser]");
+    if (chooser) return chooser;
+    chooser = document.createElement("div");
+    chooser.className = "image-placement-chooser";
+    chooser.dataset.imagePlacementChooser = "";
+    chooser.hidden = true;
+    chooser.innerHTML = [
+      '<strong>Place pasted image</strong>',
+      '<span>Click the target text first, then choose a layout.</span>',
+      '<div>',
+      '<button type="button" data-image-placement="flow">Insert in text</button>',
+      '<button type="button" data-image-placement="free">Place freely</button>',
+      '<button type="button" data-image-placement="cancel" aria-label="Cancel image">×</button>',
+      '</div>'
+    ].join("");
+    document.body.appendChild(chooser);
+    chooser.addEventListener("pointerdown", (event) => {
+      if (event.target?.closest?.('button[data-image-placement="flow"], button[data-image-placement="free"]')) {
+        event.preventDefault();
+      }
+    });
+    chooser.addEventListener("click", (event) => {
+      const mode = event.target?.closest?.("button")?.dataset?.imagePlacement;
+      if (!mode) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (mode === "cancel") {
+        pendingImagePlacement = null;
+        chooser.hidden = true;
+        setStatus(saveStatus, "Pasted image cancelled.");
+        return;
+      }
+      const pending = pendingImagePlacement;
+      if (!pending) return;
+      pendingImagePlacement = null;
+      chooser.hidden = true;
+      if (pending.kind === "relocate") relocateSelectedImage(pending, mode);
+      else insertUploadedImage(pending.result, pending.file, mode, pending);
+      setStatus(saveStatus, mode === "flow" ? "Image inserted into the text flow." : "Image placed freely. Text remains independent until you drag the text line.");
+    });
+    return chooser;
+  }
+
+  function choosePastedImagePlacement(result, file, pending = null) {
+    if (stableFlowImageMode) {
+      insertUploadedImage(result, file, "flow", pending);
+      setStatus(saveStatus, "Image inserted at the current text position.");
+      return;
+    }
+    pendingImagePlacement = { kind: "paste", result, file };
+    const chooser = ensureImagePlacementChooser();
+    chooser.hidden = false;
+    setStatus(saveStatus, "Image ready. Click a text position, then choose Insert in text or Place freely.");
+  }
+
+  function capturePendingImageSelection() {
+    if (!pendingImagePlacement || !richEditor?.getSelection) return;
+    window.queueMicrotask(() => {
+      try {
+        const selection = richEditor.getSelection();
+        if (Array.isArray(selection) && selection.length >= 2) {
+          pendingImagePlacement.selection = [selection[1], selection[1]];
+        }
+      } catch (_) {
+        // The current DOM caret remains the fallback.
+      }
+    });
+  }
+
+  richEditorEl?.addEventListener("click", capturePendingImageSelection, true);
+  richEditorEl?.addEventListener("keyup", capturePendingImageSelection, true);
+  richEditorEl?.addEventListener("pointerup", capturePendingImageSelection, true);
+  document.addEventListener("selectionchange", capturePendingImageSelection);
 
   function isImageLike(file) {
     if (!file) return false;
@@ -1964,7 +3421,7 @@
     return "";
   }
 
-  function handlePastedImage(event) {
+  async function handlePastedImage(event) {
     if (workbench.hidden) return false;
     const file = imageFromClipboard(event);
     const imageUrl = file ? "" : imageUrlFromClipboard(event);
@@ -1972,11 +3429,23 @@
     event.preventDefault();
     event.stopPropagation();
     if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-    if (file) {
-      uploadImage(file);
-    } else {
-      insertMarkdown(`![image](${imageUrl})`);
-      setStatus(saveStatus, "Inserted image link from clipboard.");
+    let pasteSelection = null;
+    try {
+      const selection = richEditor?.getSelection?.();
+      if (Array.isArray(selection) && selection.length >= 2) pasteSelection = [selection[1], selection[1]];
+    } catch (_) {
+      // The editor's live caret remains the fallback.
+    }
+    const pending = pasteSelection ? { selection: pasteSelection } : null;
+    try {
+      if (file) {
+        const result = await uploadImageFile(file);
+        choosePastedImagePlacement(result, file, pending);
+      } else {
+        choosePastedImagePlacement({ url: imageUrl, alt: "image" }, null, pending);
+      }
+    } catch (error) {
+      setStatus(saveStatus, error.message);
     }
     return true;
   }
@@ -1994,15 +3463,17 @@
   }
 
   function rememberPlacedImage(src, settings) {
-    if (!src || settings?.align !== "free") return;
+    if (!src || !settings) return;
     const snapshot = {
       src,
       alt: settings.alt || "",
       width: clampImageWidth(settings.width || defaultImageWidth),
-      align: "free",
+      align: settings.align === "free" ? "free" : "flow",
       x: imageOffset(settings.x || 0),
       y: imageOffset(settings.y || 0),
-      editorWidth: editorWidthValue(settings.editorWidth || imageEditorWidthSnapshot())
+      editorWidth: editorWidthValue(settings.editorWidth || imageEditorWidthSnapshot()),
+      reserve: imageReserve(settings.reserve || 0),
+      layer: imageLayer(settings.layer || defaultImageLayer)
     };
     imageSrcCandidates(src).forEach((key) => placedImages.set(key, snapshot));
   }
@@ -2025,35 +3496,41 @@
       align: isAbsolute ? "free" : "flow",
       x: imageOffset(leftPxMatch ? leftPxMatch[1] : 0),
       y: imageOffset(topPxMatch ? topPxMatch[1] : 0),
-      editorWidth: editorWidthValue(editorWidth)
+      editorWidth: editorWidthValue(editorWidth),
+      reserve: 0,
+      layer: imageLayer(/z-index\s*:\s*(-?\d+)/i.exec(style || "")?.[1] || defaultImageLayer)
     };
   }
 
   function rememberPlacedImagesFromMarkdown(markdown) {
+    if (stableFlowImageMode) return;
     String(markdown || "").replace(/<img\b[^>]*>/gi, (tag) => {
       const src = /\bsrc=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
       const alt = /\balt=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
       const style = /\bstyle=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
       const editorWidth = /\bdata-editor-width=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
-      const settings = imageSettingsFromStyleText(style, editorWidth);
-      if (src && settings.align === "free") rememberPlacedImage(src, { ...settings, alt });
+      const reserve = /\bdata-image-reserve=(["'])(.*?)\1/i.exec(tag)?.[2] || 0;
+      const layer = /\bdata-image-layer=(["'])(.*?)\1/i.exec(tag)?.[2] || defaultImageLayer;
+      const settings = { ...imageSettingsFromStyleText(style, editorWidth), reserve: imageReserve(reserve), layer: imageLayer(layer) };
+      if (src && (settings.align === "free" || settings.reserve || settings.layer !== defaultImageLayer)) rememberPlacedImage(src, { ...settings, alt });
       return tag;
     });
   }
 
   function applyRememberedImageStyles(markdown) {
+    if (stableFlowImageMode) return normalizeImageMarkupForStorage(markdown);
     let next = String(markdown || "");
     next = next.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt, src) => {
       const settings = rememberedImageSettings(src);
-      return settings?.align === "free"
-        ? htmlImage(src, alt, settings.width, "free", settings.x, settings.y)
+      return settings && (settings.align === "free" || settings.reserve || settings.layer !== defaultImageLayer)
+        ? htmlImage(src, alt, settings.width, settings.align, settings.x, settings.y, settings.reserve, settings.layer)
         : match;
     });
     next = next.replace(/<img\b[^>]*src=(["'])(.*?)\1[^>]*>/gi, (match, quote, src) => {
       const settings = rememberedImageSettings(src);
-      if (settings?.align !== "free") return match;
+      if (!settings || (settings.align !== "free" && !settings.reserve && settings.layer === defaultImageLayer)) return match;
       const alt = /\balt=(["'])(.*?)\1/i.exec(match)?.[2] || settings.alt || "Blog image";
-      return htmlImage(src, alt, settings.width, "free", settings.x, settings.y);
+      return htmlImage(src, alt, settings.width, settings.align, settings.x, settings.y, settings.reserve, settings.layer);
     });
     return next;
   }
@@ -2130,13 +3607,13 @@
       const src = img.getAttribute("src") || img.src;
       const remembered = src ? rememberedImageSettings(src) : null;
       if (!src) return;
-      if (remembered?.align === "free") {
+      if (remembered) {
         applyPlacedImageSettings(img, remembered);
-        expandImageCanvas(img, remembered.y);
+        if (remembered.align === "free") expandImageCanvas(img, remembered.y);
         return;
       }
       const settings = imageSettingsFromNode(img);
-      if (settings.align === "free") {
+      if (settings.align === "free" || settings.reserve || settings.layer !== defaultImageLayer) {
         rememberPlacedImage(src, {
           ...settings,
           alt: img.getAttribute("alt") || ""
@@ -2159,7 +3636,19 @@
   function imageOffset(value) {
     const offset = Number.parseFloat(value);
     if (!Number.isFinite(offset)) return 0;
-    return Math.max(-2400, Math.min(2400, Math.round(offset)));
+    return Math.max(-imageOffsetLimit, Math.min(imageOffsetLimit, Math.round(offset)));
+  }
+
+  function imageReserve(value) {
+    const reserve = Number.parseFloat(value);
+    if (!Number.isFinite(reserve)) return 0;
+    return Math.max(0, Math.min(imageOffsetLimit, Math.round(reserve)));
+  }
+
+  function imageLayer(value) {
+    const layer = Number.parseInt(value, 10);
+    if (!Number.isFinite(layer)) return defaultImageLayer;
+    return Math.max(1, Math.min(99, layer));
   }
 
   function editorWidthValue(value) {
@@ -2178,26 +3667,42 @@
     };
   }
 
-  function imageStyle(widthValue, align = "free", xValue, yValue = 0) {
+  function imageStyle(widthValue, align = "free", xValue, yValue = 0, reserveValue = 0, layerValue = defaultImageLayer) {
     const width = align === "full" ? 100 : clampImageWidth(widthValue);
     const base = `width: ${width}%; max-width: 100%; height: auto;`;
     const x = align === "full" ? 0 : imageOffset(xValue);
     const y = imageOffset(yValue);
+    const reserve = imageReserve(reserveValue);
+    const layer = imageLayer(layerValue);
     if (align === "full" || align === "flow") {
-      return `${base} display: block; position: relative; float: none; margin: 1em auto; transform: none;`;
+      return `${base} display: block; position: relative; float: none; margin: 1em auto; margin-bottom: calc(1em + ${reserve}px); transform: none; z-index: ${layer};`;
     }
-    return `${base} display: block; position: absolute; left: ${x}px; top: ${y}px; float: none; margin: 0; transform: none; z-index: 2;`;
+    return `${base} display: block; position: absolute; left: ${x}px; top: ${y}px; float: none; margin: 0; transform: none; z-index: ${layer};`;
   }
 
   function applyPlacedImageSettings(img, settings) {
-    if (!img || settings?.align !== "free") return;
-    img.setAttribute("style", imageStyle(settings.width, "free", settings.x, settings.y));
+    if (!img || !settings) return;
+    const spacerData = layoutSpacerFromSrc(img.getAttribute("src") || img.src);
+    if (spacerData) {
+      img.setAttribute("style", `width: 100%; max-width: 100%; height: ${spacerData.height}px; display: block; position: relative; margin: 0; opacity: 0.12; z-index: 1;`);
+      img.setAttribute("data-image-reserve", String(spacerData.height));
+      img.setAttribute("data-image-layer", "1");
+      img.classList.add("writer-layout-spacer-image");
+      return;
+    }
+    img.setAttribute("style", imageStyle(settings.width, settings.align, settings.x, settings.y, settings.reserve, settings.layer));
     img.setAttribute("data-editor-width", String(settings.editorWidth || imageEditorWidthSnapshot()));
+    img.setAttribute("data-image-reserve", String(imageReserve(settings.reserve || 0)));
+    img.setAttribute("data-image-layer", String(imageLayer(settings.layer || defaultImageLayer)));
+    img.classList.remove("writer-layout-spacer-image");
+    applyImageReservation(img, settings);
   }
 
-  function htmlImage(src, alt, widthValue, align, xValue, yValue) {
-    const widthAttr = align === "free" ? ` data-editor-width="${imageEditorWidthSnapshot()}"` : "";
-    return `<img src="${escapeAttr(src)}" alt="${escapeAttr(alt || "Blog image")}"${widthAttr} style="${escapeAttr(imageStyle(widthValue, align, xValue, yValue))}">`;
+  function htmlImage(src, alt, widthValue, align, xValue, yValue, reserveValue = 0, layerValue = defaultImageLayer) {
+    const reserve = imageReserve(reserveValue);
+    const layer = imageLayer(layerValue);
+    const widthAttr = ` data-editor-width="${imageEditorWidthSnapshot()}" data-image-reserve="${reserve}" data-image-layer="${layer}"`;
+    return `<img src="${escapeAttr(src)}" alt="${escapeAttr(alt || "Blog image")}"${widthAttr} style="${escapeAttr(imageStyle(widthValue, align, xValue, yValue, reserve, layer))}">`;
   }
 
   function imageSettingsFromNode(img) {
@@ -2206,6 +3711,8 @@
     if (remembered) return { ...remembered };
     const style = img?.getAttribute("style") || "";
     const storedEditorWidth = editorWidthValue(img?.getAttribute("data-editor-width") || "");
+    const reserve = imageReserve(img?.getAttribute("data-image-reserve") || 0);
+    const storedLayer = imageLayer(img?.getAttribute("data-image-layer") || defaultImageLayer);
     const widthMatch = /width\s*:\s*(\d+(?:\.\d+)?)%/i.exec(style);
     const width = clampImageWidth(widthMatch ? widthMatch[1] : defaultImageWidth);
     const isAbsolute = /position\s*:\s*absolute/i.test(style);
@@ -2242,7 +3749,8 @@
           : rectPosition.y;
     const hasLegacyPlacement = Boolean(translateMatch || leftMatch || marginLeftMatch || /float\s*:\s*(left|right)/i.test(style));
     const align = width >= 100 ? "full" : isAbsolute || hasLegacyPlacement ? "free" : "flow";
-    return { width, align, x, y, editorWidth: storedEditorWidth || imageEditorWidthSnapshot() };
+    const styleLayer = imageLayer(/z-index\s*:\s*(-?\d+)/i.exec(style)?.[1] || storedLayer);
+    return { width, align, x, y, editorWidth: storedEditorWidth || imageEditorWidthSnapshot(), reserve, layer: styleLayer };
   }
 
   function imageEditorRect() {
@@ -2262,6 +3770,27 @@
       || richEditorEl?.querySelector(".toastui-editor-ww-container .ProseMirror")
       || richEditorEl?.querySelector(".ProseMirror");
     return node?.getBoundingClientRect?.() || richEditorEl?.getBoundingClientRect?.() || null;
+  }
+
+  function imageAnchorBlock(img) {
+    return img?.closest?.("p, li, blockquote, figure, div") || img?.parentElement || null;
+  }
+
+  function applyImageReservation(img, settings) {
+    const block = imageAnchorBlock(img);
+    if (!block || block.classList?.contains("ProseMirror")) return;
+    const reserve = imageReserve(settings?.reserve || 0);
+    if (settings?.align === "free" && reserve > 0) {
+      block.style.minHeight = `${reserve}px`;
+      block.dataset.imageReserveOwner = img.getAttribute("src") || "image";
+      block.classList.add("writer-image-reservation");
+      return;
+    }
+    if (block.dataset.imageReserveOwner === (img.getAttribute("src") || "image")) {
+      block.style.removeProperty("min-height");
+      block.removeAttribute("data-image-reserve-owner");
+      block.classList.remove("writer-image-reservation");
+    }
   }
 
   function imageWidthFromRect(img) {
@@ -2290,7 +3819,7 @@
     if (Math.abs(driftX) <= 1 && Math.abs(driftY) <= 1) return;
     img.setAttribute(
       "style",
-      imageStyle(settings.width, "free", imageOffset(settings.x + driftX), imageOffset(settings.y + driftY))
+      imageStyle(settings.width, "free", imageOffset(settings.x + driftX), imageOffset(settings.y + driftY), settings.reserve, settings.layer)
     );
   }
 
@@ -2298,9 +3827,21 @@
     if (imageOverlay) return imageOverlay;
     imageOverlay = document.createElement("div");
     imageOverlay.className = "image-drag-overlay";
+    if (stableFlowImageMode) {
+      imageOverlay.innerHTML = '<div class="image-drag-outline"></div>';
+      document.body.appendChild(imageOverlay);
+      return imageOverlay;
+    }
     imageOverlay.innerHTML = [
       '<div class="image-drag-outline"></div>',
       '<div class="image-drag-label"></div>',
+      '<div class="image-layout-actions" role="toolbar" aria-label="Image layout">',
+      '<button type="button" data-image-action="back" title="Send backward" aria-label="Send image backward">↓</button>',
+      '<button type="button" data-image-action="front" title="Bring forward" aria-label="Bring image forward">↑</button>',
+      '<button type="button" data-image-action="clear-reserve" title="Remove text space" aria-label="Remove text space">⌫</button>',
+      '<button type="button" data-image-action="reanchor" title="Move to another text position" aria-label="Move image to another text position">↪</button>',
+      '</div>',
+      '<div class="image-text-line" aria-hidden="true"><span></span><button type="button" aria-label="Adjust text start line" title="Drag to adjust where text continues"></button></div>',
       '<button class="image-drag-handle is-nw" type="button" data-resize-edge="left" aria-label="Resize image from left"></button>',
       '<button class="image-drag-handle is-ne" type="button" data-resize-edge="right" aria-label="Resize image from right"></button>',
       '<button class="image-drag-handle is-se" type="button" data-resize-edge="right" aria-label="Resize image"></button>'
@@ -2310,6 +3851,9 @@
       handle.addEventListener("pointerdown", startImageResize);
       handle.addEventListener("mousedown", startImageResize);
     });
+    imageOverlay.querySelector(".image-text-line button")?.addEventListener("pointerdown", startImageReserve);
+    imageOverlay.querySelector(".image-text-line button")?.addEventListener("mousedown", startImageReserve);
+    imageOverlay.querySelector(".image-layout-actions")?.addEventListener("click", handleImageLayoutAction);
     return imageOverlay;
   }
 
@@ -2317,14 +3861,14 @@
     return ensureImageOverlay().querySelector(".image-drag-label");
   }
 
-  function setOverlayLabel(width, align, x, y = 0) {
+  function setOverlayLabel(width, align, x, y = 0, reserve = 0, layer = defaultImageLayer) {
     const label = overlayLabel();
     const nextWidth = clampImageWidth(width);
     const nextX = align === "full" ? 0 : imageOffset(x);
     if (label) {
       label.textContent = align === "flow"
-        ? `${nextWidth}% · flow`
-        : `${nextWidth}% · x ${nextX}px · y ${imageOffset(y)}px`;
+        ? `${nextWidth}% · in text · layer ${imageLayer(layer)}${imageReserve(reserve) ? ` · space ${imageReserve(reserve)}px` : ""}`
+        : `${nextWidth}% · x ${nextX}px · y ${imageOffset(y)}px · layer ${imageLayer(layer)}${imageReserve(reserve) ? ` · space ${imageReserve(reserve)}px` : ""}`;
     }
   }
 
@@ -2344,8 +3888,22 @@
     overlay.style.width = `${rect.width}px`;
     overlay.style.height = `${rect.height}px`;
     overlay.classList.add("is-active");
+    if (stableFlowImageMode) return;
     const width = selectedImage?.width || imageWidthFromRect(selectedImageNode);
-    setOverlayLabel(width, selectedImage?.align || "free", selectedImage?.x ?? 0, selectedImage?.y ?? 0);
+    const reserve = imageReserve(selectedImage?.reserve || 0);
+    const layer = imageLayer(selectedImage?.layer || defaultImageLayer);
+    setOverlayLabel(width, selectedImage?.align || "free", selectedImage?.x ?? 0, selectedImage?.y ?? 0, reserve, layer);
+    const editorRect = imageContainerRect(selectedImageNode);
+    const anchorRect = imageAnchorBlock(selectedImageNode)?.getBoundingClientRect?.();
+    const line = overlay.querySelector(".image-text-line");
+    if (line && editorRect) {
+      const baseline = selectedImage?.align === "free" && reserve > 0 && anchorRect
+        ? anchorRect.top + reserve
+        : rect.bottom + (selectedImage?.align === "flow" ? reserve : 0);
+      line.style.left = `${editorRect.left}px`;
+      line.style.top = `${baseline}px`;
+      line.style.width = `${editorRect.width}px`;
+    }
   }
 
   function findSelectedImageNode() {
@@ -2364,7 +3922,7 @@
     }) || null;
   }
 
-  function replaceSelectedImage(widthValue, alignValue, xValue, yValue) {
+  function replaceSelectedImage(widthValue, alignValue, xValue, yValue, reserveValue, layerValue) {
     if (!selectedImage?.src) {
       setStatus(saveStatus, "Click an image first.");
       return false;
@@ -2373,6 +3931,8 @@
     const width = align === "full" ? 100 : clampImageWidth(widthValue || selectedImage.width || defaultImageWidth);
     const x = align === "full" ? 0 : imageOffset(xValue ?? selectedImage.x ?? 0);
     const y = imageOffset(yValue ?? selectedImage.y ?? 0);
+    const reserve = imageReserve(reserveValue ?? selectedImage.reserve ?? 0);
+    const layer = imageLayer(layerValue ?? selectedImage.layer ?? defaultImageLayer);
     const editorWidth = align === "free" ? imageEditorWidthSnapshot() : 0;
     const srcs = imageSrcCandidates(selectedImage.src);
     const markdown = getMarkdown();
@@ -2382,20 +3942,20 @@
       .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt, src) => {
         if (changed || !srcs.has(src)) return match;
         changed = true;
-        return imageMarkupForStorage(src, alt, width, align, x, y);
+        return imageMarkupForStorage(src, alt, width, align, x, y, reserve, layer);
       })
       .replace(/<img\b[^>]*src=(["'])(.*?)\1[^>]*>/gi, (match, quote, src) => {
         if (changed || !srcs.has(src)) return match;
         const alt = /alt=(["'])(.*?)\1/i.exec(match)?.[2] || selectedImage.alt || "Blog image";
         changed = true;
-        return imageMarkupForStorage(src, alt, width, align, x, y);
+        return imageMarkupForStorage(src, alt, width, align, x, y, reserve, layer);
       });
 
     if (!changed) {
       setStatus(saveStatus, "Could not find that image in Markdown.");
       return false;
     }
-    selectedImage = { ...selectedImage, width, align, x, y, editorWidth };
+    selectedImage = { ...selectedImage, width, align, x, y, editorWidth, reserve, layer };
     rememberPlacedImage(selectedImage.src, selectedImage);
     if (richEditor) {
       fields.markdown.value = next;
@@ -2408,8 +3968,42 @@
     saveLocalDraft({ quiet: true });
     scheduleAutosave();
     renderPreview();
-    setStatus(saveStatus, `Image ${width}% · x ${x}px · y ${y}px`);
+    setStatus(saveStatus, `Image ${width}% · ${align === "flow" ? "in text" : `x ${x}px · y ${y}px`} · layer ${layer}${reserve ? ` · space ${reserve}px` : ""}`);
     window.setTimeout(refreshSelectedImage, 160);
+    return true;
+  }
+
+  function deleteSelectedImage() {
+    if (!selectedImage?.src) return false;
+    const srcs = imageSrcCandidates(selectedImage.src);
+    const markdown = getMarkdown();
+    let changed = false;
+    const next = markdown
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt, src) => {
+        if (changed || !srcs.has(src)) return match;
+        changed = true;
+        return "";
+      })
+      .replace(/<img\b[^>]*src=(["'])(.*?)\1[^>]*>/gi, (match, quote, src) => {
+        if (changed || !srcs.has(src)) return match;
+        changed = true;
+        return "";
+      });
+
+    if (!changed) {
+      setStatus(saveStatus, "Could not find that image in Markdown.");
+      return false;
+    }
+
+    imageSrcCandidates(selectedImage.src).forEach((key) => placedImages.delete(key));
+    selectedImage = null;
+    selectedImageNode = null;
+    imageOverlay?.classList.remove("is-active");
+    setMarkdown(next);
+    saveLocalDraft({ quiet: true });
+    scheduleAutosave();
+    renderPreview();
+    setStatus(saveStatus, "Image deleted");
     return true;
   }
 
@@ -2423,11 +4017,15 @@
     }
     const img = findSelectedImageNode();
     if (img) {
-      selectedImage = { ...selectedImage, ...imageSettingsFromNode(img) };
-      if (selectedImage.align === "free") {
-        applyPlacedImageSettings(img, selectedImage);
-        expandImageCanvas(img, selectedImage.y);
+      if (stableFlowImageMode) {
+        img.classList.add("is-selected-writer-image");
+        selectedImageNode = img;
+        positionImageOverlay();
+        return;
       }
+      selectedImage = { ...selectedImage, ...imageSettingsFromNode(img) };
+      applyPlacedImageSettings(img, selectedImage);
+      if (selectedImage.align === "free") expandImageCanvas(img, selectedImage.y);
       img.classList.add("is-selected-writer-image");
       selectedImageNode = img;
       positionImageOverlay();
@@ -2438,6 +4036,19 @@
   }
 
   richEditorEl?.addEventListener("click", (event) => {
+    const spacerImage = event.target?.closest?.("img");
+    const spacerImageData = spacerImage ? layoutSpacerFromSrc(spacerImage.getAttribute("src") || spacerImage.src) : null;
+    const spacer = event.target?.closest?.("[data-writer-spacer]");
+    richEditorEl.querySelectorAll(".is-selected-writer-spacer").forEach((node) => node.classList.remove("is-selected-writer-spacer"));
+    if (spacer || spacerImageData) {
+      selectedLayoutSpacerId = spacer?.getAttribute("data-writer-spacer") || spacerImageData?.id || "";
+      (spacer || spacerImage)?.classList.add("is-selected-writer-spacer");
+      selectedImage = null;
+      refreshSelectedImage();
+      setStatus(saveStatus, "Layout spacer selected. Press Command/Ctrl + Backspace to remove it.");
+      return;
+    }
+    selectedLayoutSpacerId = "";
     const img = event.target?.closest?.("img");
     if (!img) {
       selectedImage = null;
@@ -2450,7 +4061,12 @@
       ...imageSettingsFromNode(img)
     };
     refreshSelectedImage();
-    setStatus(saveStatus, "Image selected. Drag freely in any direction, drag corner to resize.");
+    setStatus(
+      saveStatus,
+      stableFlowImageMode
+        ? "Image selected. Press Command/Ctrl + Backspace to remove it."
+        : "Image selected. Drag freely in any direction, drag corner to resize."
+    );
   });
 
   function disableNativeImageDrag() {
@@ -2474,25 +4090,38 @@
       width: defaultImageWidth,
       align: "flow",
       x: 0,
-      y: 0
+      y: 0,
+      reserve: 0,
+      layer: defaultImageLayer
     };
     refreshSelectedImage();
-    setStatus(saveStatus, `Image inserted ${defaultImageWidth}% · centered. Drag image to place it freely.`);
+    setStatus(
+      saveStatus,
+      stableFlowImageMode
+        ? "Image inserted in the text flow. Press Command/Ctrl + Backspace to remove it."
+        : `Image inserted ${defaultImageWidth}% · centered. Drag image to place it freely.`
+    );
   }
 
-  function applyLiveImagePreview(width, align, x, y) {
+  function applyLiveImagePreview(width, align, x, y, reserveValue, layerValue) {
     if (!selectedImageNode) return;
     const nextWidth = clampImageWidth(width);
     const nextX = align === "full" ? 0 : imageOffset(x ?? selectedImage?.x ?? 0);
     const nextY = imageOffset(y ?? selectedImage?.y ?? 0);
-    selectedImageNode.setAttribute("style", imageStyle(nextWidth, align, nextX, nextY));
-    selectedImage = { ...selectedImage, width: nextWidth, align, x: nextX, y: nextY, editorWidth: align === "free" ? imageEditorWidthSnapshot() : 0 };
+    const reserve = imageReserve(reserveValue ?? selectedImage?.reserve ?? 0);
+    const layer = imageLayer(layerValue ?? selectedImage?.layer ?? defaultImageLayer);
+    selectedImageNode.setAttribute("style", imageStyle(nextWidth, align, nextX, nextY, reserve, layer));
+    selectedImageNode.setAttribute("data-image-reserve", String(reserve));
+    selectedImageNode.setAttribute("data-image-layer", String(layer));
+    selectedImage = { ...selectedImage, width: nextWidth, align, x: nextX, y: nextY, reserve, layer, editorWidth: align === "free" ? imageEditorWidthSnapshot() : 0 };
+    applyImageReservation(selectedImageNode, selectedImage);
     expandImageCanvas(selectedImageNode, nextY);
-    setOverlayLabel(nextWidth, align, nextX, nextY);
+    setOverlayLabel(nextWidth, align, nextX, nextY, reserve, layer);
     positionImageOverlay();
   }
 
   function startImageMove(event) {
+    if (stableFlowImageMode) return;
     if (workbench.hidden || event.button !== 0) return;
     if (event.type === "mousedown" && window.PointerEvent) return;
     const img = event.target?.closest?.("img");
@@ -2508,17 +4137,23 @@
     };
     selectedImageNode = img;
     refreshSelectedImage();
+    if (selectedImage.align !== "free") {
+      setStatus(saveStatus, "This image is anchored in text. Use ↪ to move its text position, or choose Place freely.");
+      return;
+    }
     imageDrag = {
       mode: "move",
       startX: event.clientX,
       startY: event.clientY,
       started: false,
       width: selectedImage.width,
-      align: "free",
+      align: selectedImage.align,
       originX: selectedImage.x ?? 0,
       originY: selectedImage.y ?? 0,
       x: selectedImage.x ?? 0,
-      y: selectedImage.y ?? 0
+      y: selectedImage.y ?? 0,
+      reserve: selectedImage.reserve ?? 0,
+      layer: selectedImage.layer ?? defaultImageLayer
     };
     img.setPointerCapture?.(event.pointerId);
     setStatus(saveStatus, "Drag freely in any direction; release to save.");
@@ -2538,15 +4173,78 @@
       startWidthPx: rect.width,
       editorWidth: imageEditorRect()?.width || rect.width,
       width: selectedImage?.width || imageWidthFromRect(selectedImageNode),
-      align: selectedImage?.align || "center",
+      align: selectedImage?.align || "flow",
       originX: selectedImage?.x ?? 0,
       originY: selectedImage?.y ?? 0,
       x: selectedImage?.x ?? 0,
       y: selectedImage?.y ?? 0,
+      reserve: selectedImage?.reserve ?? 0,
+      layer: selectedImage?.layer ?? defaultImageLayer,
       direction: event.currentTarget?.dataset?.resizeEdge === "left" ? -1 : 1
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setStatus(saveStatus, "Resize image; release to save.");
+  }
+
+  function startImageReserve(event) {
+    if (!selectedImageNode) return;
+    if (event.type === "mousedown" && window.PointerEvent) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const imgRect = selectedImageNode.getBoundingClientRect();
+    const anchorRect = imageAnchorBlock(selectedImageNode)?.getBoundingClientRect?.();
+    const currentReserve = imageReserve(selectedImage?.reserve || 0);
+    const reserve = selectedImage?.align === "free" && currentReserve === 0 && anchorRect
+      ? imageReserve(imgRect.bottom - anchorRect.top)
+      : currentReserve;
+    imageDrag = {
+      mode: "reserve",
+      startX: event.clientX,
+      startY: event.clientY,
+      started: true,
+      width: selectedImage?.width || imageWidthFromRect(selectedImageNode),
+      align: selectedImage?.align || "flow",
+      originX: selectedImage?.x ?? 0,
+      originY: selectedImage?.y ?? 0,
+      x: selectedImage?.x ?? 0,
+      y: selectedImage?.y ?? 0,
+      originReserve: reserve,
+      reserve,
+      layer: selectedImage?.layer ?? defaultImageLayer
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setStatus(saveStatus, "Drag the text line down to keep more space; drag up to reduce it.");
+  }
+
+  function handleImageLayoutAction(event) {
+    const action = event.target?.closest?.("button")?.dataset?.imageAction;
+    if (!action || !selectedImage?.src) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (action === "clear-reserve") {
+      replaceSelectedImage(selectedImage.width, selectedImage.align, selectedImage.x, selectedImage.y, 0, selectedImage.layer);
+      return;
+    }
+    if (action === "reanchor") {
+      pendingImagePlacement = {
+        kind: "relocate",
+        source: { ...selectedImage },
+        occupiedHeight: selectedImageOccupiedHeight()
+      };
+      ensureImagePlacementChooser().hidden = false;
+      setStatus(saveStatus, "Click the new text position, then choose Insert in text or Place freely.");
+      return;
+    }
+    const delta = action === "front" ? 1 : action === "back" ? -1 : 0;
+    if (!delta) return;
+    replaceSelectedImage(
+      selectedImage.width,
+      selectedImage.align,
+      selectedImage.x,
+      selectedImage.y,
+      selectedImage.reserve,
+      imageLayer((selectedImage.layer || defaultImageLayer) + delta)
+    );
   }
 
   function handleImageDragMove(event) {
@@ -2561,7 +4259,13 @@
       imageDrag.x = x;
       imageDrag.y = y;
       imageDrag.align = "free";
-      applyLiveImagePreview(imageDrag.width, "free", x, y);
+      applyLiveImagePreview(imageDrag.width, "free", x, y, imageDrag.reserve, imageDrag.layer);
+      return;
+    }
+    if (imageDrag.mode === "reserve") {
+      const reserve = imageReserve((imageDrag.originReserve || 0) + rawDeltaY);
+      imageDrag.reserve = reserve;
+      applyLiveImagePreview(imageDrag.width, imageDrag.align, imageDrag.x, imageDrag.y, reserve, imageDrag.layer);
       return;
     }
     if (imageDrag.mode === "resize") {
@@ -2574,7 +4278,7 @@
         : imageOffset(imageDrag.originX || 0);
       imageDrag.width = width;
       imageDrag.x = x;
-      applyLiveImagePreview(width, imageDrag.align, x, imageDrag.y);
+      applyLiveImagePreview(width, imageDrag.align, x, imageDrag.y, imageDrag.reserve, imageDrag.layer);
     }
   }
 
@@ -2584,9 +4288,9 @@
       imageDrag = null;
       return;
     }
-    const { width, align, x, y } = imageDrag;
+    const { width, align, x, y, reserve, layer } = imageDrag;
     imageDrag = null;
-    replaceSelectedImage(width, align, x, y);
+    replaceSelectedImage(width, align, x, y, reserve, layer);
   }
 
   richEditorEl?.addEventListener("pointerdown", startImageMove);
@@ -2597,6 +4301,7 @@
   window.addEventListener("mouseup", finishImageDrag);
   window.addEventListener("scroll", positionImageOverlay, true);
   window.addEventListener("resize", positionImageOverlay);
+  window.addEventListener("resize", scheduleHtmlVisualEditorResize);
 
   document.querySelector("[data-upload-image]")?.addEventListener("click", () => {
     uploadAttachment(fields.image.files && fields.image.files[0]);
@@ -2627,7 +4332,7 @@
   });
 
   richEditorEl?.addEventListener("paste", handlePastedImage, true);
-  richEditorEl?.addEventListener("dblclick", (event) => {
+  richEditorEl?.addEventListener("click", (event) => {
     const href = annotationHrefFromNode(event.target);
     if (!href) return;
     event.preventDefault();
@@ -2648,7 +4353,8 @@
       title: String(values.get("title") || "").trim(),
       body: String(values.get("body") || "").trim(),
       label: String(values.get("label") || "").trim(),
-      url: String(values.get("url") || "").trim()
+      url: String(values.get("url") || "").trim(),
+      origin: pendingAnnotationOrigin
     };
     if (!payload.body) {
       annotationForm.elements.body.focus();
@@ -2657,6 +4363,8 @@
     applyAnnotation(payload);
     annotationDialog.close();
   });
+
+  annotationBody?.addEventListener("input", resizeAnnotationBody);
 
   annotationCancelButton?.addEventListener("click", () => {
     pendingAnnotation = null;
@@ -2668,9 +4376,11 @@
 
   annotationDialog?.addEventListener("close", () => {
     pendingAnnotation = null;
+    pendingAnnotationOrigin = "author";
   });
 
   function trackImageLayoutMutation(event) {
+    if (stableFlowImageMode) return;
     if (!richEditorEl?.contains(event.target) || imageDrag) return;
     if (!hasPlacedImages()) return;
     captureImageViewport();
@@ -2687,6 +4397,26 @@
 
   document.addEventListener("keydown", (event) => {
     const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key === "Backspace" && selectedLayoutSpacerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const escapedId = selectedLayoutSpacerId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`<div\\b[^>]*data-writer-spacer=(["'])${escapedId}\\1[^>]*>\\s*</div>`, "i");
+      const next = getMarkdown().replace(pattern, "");
+      selectedLayoutSpacerId = "";
+      setMarkdown(next);
+      saveLocalDraft({ quiet: true });
+      scheduleAutosave();
+      renderPreview();
+      setStatus(saveStatus, "Layout spacer removed.");
+      return;
+    }
+    if (mod && event.key === "Backspace" && selectedImage?.src) {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteSelectedImage();
+      return;
+    }
     if (!mod) return;
     if (event.key.toLowerCase() === "s") {
       event.preventDefault();
@@ -2696,18 +4426,19 @@
       event.preventDefault();
       if (!workbench.hidden) publishPost();
     }
-  });
+  }, true);
 
   window.addEventListener("pagehide", () => {
-    if (!workbench.hidden) saveLocalDraft({ quiet: true });
+    if (!workbench.hidden && !suppressLocalDraftSave) saveLocalDraft({ quiet: true });
+    releaseDraftLease();
   });
 
   window.addEventListener("beforeunload", () => {
-    if (!workbench.hidden) saveLocalDraft({ quiet: true });
+    if (!workbench.hidden && !suppressLocalDraftSave) saveLocalDraft({ quiet: true });
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (!workbench.hidden && document.visibilityState === "hidden") {
+    if (!workbench.hidden && !suppressLocalDraftSave && document.visibilityState === "hidden") {
       saveLocalDraft({ quiet: true });
     }
   });
@@ -2744,6 +4475,7 @@
       saveLocalDraft();
       renderPreview();
     },
+    deleteSelectedImage,
     renderEditorMath,
     inspectMathState() {
       const root = editorContentRoot();

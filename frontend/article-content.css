@@ -15,11 +15,28 @@
 }
 
 :root {
-  --article-content-width: 700px;
-  --article-font-size: 19px;
-  --article-line-height: 1.86;
-  --article-block-gap: 1.15em;
+  --article-content-width: 760px;
+  --article-font-size: 16.5px;
+  --article-line-height: 1.74;
+  --article-title-size: 44px;
+  --article-title-line-height: 1.08;
+  --article-block-gap: .95em;
+  --article-letter-spacing: .065em;
   --article-font: "Michel Noto Serif SC", Georgia, serif;
+}
+
+body.is-html-post,
+body.is-html-editor {
+  --article-content-width: 860px;
+  --article-font-size: 16.8px;
+  --article-line-height: 1.9047619;
+  --article-letter-spacing: normal;
+}
+
+@media (max-width: 47.99rem), (pointer: coarse) {
+  :root {
+    --article-title-size: 34px;
+  }
 }
 
 .rich-editor .ProseMirror,
@@ -33,7 +50,7 @@
   font-size: var(--article-font-size) !important;
   font-weight: 400;
   line-height: var(--article-line-height) !important;
-  letter-spacing: .005em;
+  letter-spacing: var(--article-letter-spacing);
   overflow-wrap: break-word;
   word-break: normal;
 }
@@ -43,7 +60,7 @@
 .admin-preview-body p,
 .post-content p {
   margin: var(--article-block-gap) 0 !important;
-  white-space: break-spaces;
+  white-space: normal;
   line-height: var(--article-line-height) !important;
 }
 
@@ -80,10 +97,17 @@
   letter-spacing: 0;
 }
 
-.rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 44px !important; }
-.rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 34px !important; }
-.rich-editor .ProseMirror h3, .rich-editor .toastui-editor-contents h3, .admin-preview-body h3, .post-content h3 { font-size: 27px !important; }
-.rich-editor .ProseMirror h4, .rich-editor .toastui-editor-contents h4, .admin-preview-body h4, .post-content h4 { font-size: 22px !important; }
+.rich-editor .ProseMirror :is(ul, ol) + :is(h1, h2, h3, h4, h5, h6),
+.rich-editor .toastui-editor-contents :is(ul, ol) + :is(h1, h2, h3, h4, h5, h6),
+.admin-preview-body :is(ul, ol) + :is(h1, h2, h3, h4, h5, h6),
+.post-content :is(ul, ol) + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: .82em !important;
+}
+
+.rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 33.68px !important; }
+.rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 25.26px !important; }
+.rich-editor .ProseMirror h3, .rich-editor .toastui-editor-contents h3, .admin-preview-body h3, .post-content h3 { font-size: 19.65px !important; }
+.rich-editor .ProseMirror h4, .rich-editor .toastui-editor-contents h4, .admin-preview-body h4, .post-content h4 { font-size: 16.84px !important; }
 .rich-editor .ProseMirror h5, .rich-editor .toastui-editor-contents h5, .admin-preview-body h5, .post-content h5 { font-size: 19px !important; }
 .rich-editor .ProseMirror h6, .rich-editor .toastui-editor-contents h6, .admin-preview-body h6, .post-content h6 { font-size: 17px !important; }
 
@@ -153,8 +177,24 @@
   display: inline;
   color: inherit;
   cursor: help;
+  user-select: text;
+  -webkit-user-select: text;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: .18em;
+  text-decoration-color: #9b6a25;
   outline: none;
   transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.article-annotation[data-annotation-origin="glm"] {
+  color: #76501d;
+  text-decoration-style: dotted;
+  text-decoration-color: #b07924;
+}
+
+.article-annotation[data-annotation-origin="author"] {
+  text-decoration-style: solid;
 }
 
 /* Popovers may extend beyond the paper edge; only annotated articles opt out of clipping. */
@@ -174,17 +214,17 @@
 }
 
 .article-annotation-popover {
-  position: absolute;
+  position: fixed;
   z-index: 45;
-  left: 50%;
-  bottom: calc(100% + 12px);
+  left: 0;
+  top: 0;
   display: none;
   box-sizing: border-box;
   width: max-content;
   min-width: 230px;
   max-width: min(420px, 80vw);
   padding: 14px 16px;
-  transform: translateX(calc(-50% + var(--annotation-shift, 0px)));
+  transform: none;
   border: 2px solid #2d2d2d;
   border-radius: 8px;
   background: #fffaf0;
@@ -243,12 +283,20 @@
   text-decoration: none;
 }
 
+.rich-editor .ProseMirror a[data-annotation-origin="glm"],
+.rich-editor .toastui-editor-contents a[data-annotation-origin="glm"] {
+  color: #76501d;
+  text-decoration: underline dotted #b07924 1.5px;
+  text-underline-offset: .18em;
+}
+
 @media (max-width: 720px), (hover: none) {
   .article-annotation-popover {
     position: fixed;
     z-index: 120;
     left: 14px;
     right: 14px;
+    top: auto;
     bottom: max(18px, env(safe-area-inset-bottom));
     width: auto;
     min-width: 0;
@@ -365,11 +413,18 @@
 
 @media (max-width: 760px) {
   :root {
-    --article-font-size: 17px;
-    --article-line-height: 1.78;
-    --article-block-gap: 1em;
+    --article-font-size: clamp(15.75px, 4.35vw, 17px);
+    --article-line-height: 1.74;
+    --article-block-gap: .95em;
   }
 
-  .rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 36px !important; }
-  .rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 30px !important; }
+  body.is-html-post,
+  body.is-html-editor {
+    --article-font-size: 16px;
+    --article-line-height: 1.75;
+    --article-letter-spacing: normal;
+  }
+
+  .rich-editor .ProseMirror h1, .rich-editor .toastui-editor-contents h1, .admin-preview-body h1, .post-content h1 { font-size: 33.68px !important; }
+  .rich-editor .ProseMirror h2, .rich-editor .toastui-editor-contents h2, .admin-preview-body h2, .post-content h2 { font-size: 25.26px !important; }
 }

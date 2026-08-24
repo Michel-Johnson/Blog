@@ -12,21 +12,89 @@
   }
 
   const authoredPosts = Array.isArray(window.MICHEL_AUTHORED_POSTS) ? window.MICHEL_AUTHORED_POSTS : [];
-  let pinnedSlugs = Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [];
-  try {
-    const localPins = JSON.parse(window.localStorage.getItem('michel:pinned-posts') || 'null');
-    if (Array.isArray(localPins)) pinnedSlugs = localPins;
-  } catch (_) {
-    // The generated pin file remains the source of truth when storage is unavailable.
-  }
-  const pinnedRank = new Map(pinnedSlugs.map((slug, index) => [String(slug || '').trim(), index]));
-  const sortPinnedPosts = (posts) => posts.slice().sort((a, b) => {
-    const rankA = pinnedRank.has(String(a?.slug || '').trim()) ? pinnedRank.get(String(a.slug).trim()) : Number.MAX_SAFE_INTEGER;
-    const rankB = pinnedRank.has(String(b?.slug || '').trim()) ? pinnedRank.get(String(b.slug).trim()) : Number.MAX_SAFE_INTEGER;
-    return rankA - rankB;
+  const hiddenPostIdentities = Array.isArray(window.MICHEL_HIDDEN_POSTS) ? window.MICHEL_HIDDEN_POSTS : [];
+  const knownPinnedAliases = new Map([
+    ['machine-learning', ['机器学习']],
+    ['michael-diary', ['michael-diary-2026-05-08']]
+  ]);
+  const pinnedDefinitions = (Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [])
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return { slugs: [entry, ...(knownPinnedAliases.get(entry) || [])], title: '' };
+      }
+      const canonicalSlug = String(entry?.slug || '').trim();
+      return {
+        slugs: [
+          canonicalSlug,
+          ...(knownPinnedAliases.get(canonicalSlug) || []),
+          ...(Array.isArray(entry?.aliases) ? entry.aliases : [])
+        ]
+          .map((slug) => String(slug || '').trim())
+          .filter(Boolean),
+        title: String(entry?.title || '').trim()
+      };
+    });
+  const pinnedRank = new Map();
+  const pinnedTitleRank = new Map();
+  pinnedDefinitions.forEach((entry, index) => {
+    entry.slugs.forEach((slug) => pinnedRank.set(slug, index));
+    if (entry.title) pinnedTitleRank.set(entry.title, index);
   });
-  const allPosts = sortPinnedPosts(authoredPosts.concat(Array.isArray(window.MICHEL_ALL_POSTS) ? window.MICHEL_ALL_POSTS : []));
-  const mountedPosts = sortPinnedPosts(authoredPosts.concat(Array.isArray(window.MICHEL_POSTS) ? window.MICHEL_POSTS : []));
+  const pinnedRankForPost = (post) => {
+    const slug = String(post?.slug || '').trim();
+    const title = String(post?.title || '').trim();
+    if (pinnedRank.has(slug)) return pinnedRank.get(slug);
+    if (pinnedTitleRank.has(title)) return pinnedTitleRank.get(title);
+    return Number.MAX_SAFE_INTEGER;
+  };
+  const sortPinnedPosts = (posts) => posts.slice().sort((a, b) => {
+    return pinnedRankForPost(a) - pinnedRankForPost(b);
+  });
+  const normalizeIdentity = (value) => {
+    const text = String(value || '').trim().normalize('NFKC').toLowerCase();
+    try {
+      return decodeURIComponent(text);
+    } catch (_) {
+      return text;
+    }
+  };
+  const normalizeIdentityDate = (value) => String(value || '').trim().replace(/-/g, '/');
+  const postIdentityKeys = (post) => {
+    const slugValues = [post?.slug, post?.originalSlug, ...(Array.isArray(post?.aliases) ? post.aliases : [])]
+      .map(normalizeIdentity)
+      .filter(Boolean);
+    const keys = slugValues.map((value) => `slug:${value}`);
+    const title = normalizeIdentity(post?.title);
+    const date = normalizeIdentityDate(post?.date);
+    if (title && date) keys.push(`title-date:${title}|||${date}`);
+    return [...new Set(keys)];
+  };
+  const hiddenPostKeys = new Set(hiddenPostIdentities
+    .map(normalizeIdentity)
+    .filter(Boolean)
+    .map((identity) => `slug:${identity}`));
+  const mergePostCatalogs = (preferred, fallback) => {
+    const merged = [];
+    const seen = new Set();
+    [...preferred.map((post) => ({ post, fallback: false })), ...fallback.map((post) => ({ post, fallback: true }))].forEach((entry) => {
+      const { post } = entry;
+      if (!post) return;
+      const keys = postIdentityKeys(post);
+      if (entry.fallback && keys.some((key) => hiddenPostKeys.has(key))) return;
+      if (keys.some((key) => seen.has(key))) return;
+      merged.push(post);
+      keys.forEach((key) => seen.add(key));
+    });
+    return merged;
+  };
+  const allPosts = sortPinnedPosts(mergePostCatalogs(
+    authoredPosts,
+    Array.isArray(window.MICHEL_ALL_POSTS) ? window.MICHEL_ALL_POSTS : []
+  ));
+  const mountedPosts = sortPinnedPosts(mergePostCatalogs(
+    authoredPosts,
+    Array.isArray(window.MICHEL_POSTS) ? window.MICHEL_POSTS : []
+  ));
   const selectedBlogList = document.querySelector('.blog-list');
   if (selectedBlogList) {
     const selectedCards = Array.from(selectedBlogList.querySelectorAll(':scope > a'));
@@ -51,6 +119,7 @@
         } catch (_) {
           // Leave malformed legacy links in their original relative order.
         }
+        card.hidden = hiddenPostKeys.has(`slug:${normalizeIdentity(slug)}`);
         card.classList.toggle('is-pinned-post', pinnedRank.has(slug));
         selectedBlogList.appendChild(card);
       });
@@ -62,7 +131,7 @@
   const activityChart = document.querySelector('[data-activity-chart]');
   const activityTotal = document.querySelector('[data-activity-total]');
   const activityRange = document.querySelector('[data-activity-range]');
-  if (!toggle || !panel || !list) return;
+  if (!panel || !list) return;
 
   const normalizeUrl = (value) => {
     try {
@@ -219,8 +288,7 @@
       }
       return [{ type: token.type, value: token.value }];
     });
-    if (glyphs.length <= 10) return glyphs;
-    return glyphs.slice(0, 9).concat({ type: 'char', value: '…' });
+    return glyphs;
   };
   const mountSpineTitle = (node, title) => {
     node.textContent = '';
@@ -250,6 +318,8 @@
       span.textContent = token.value;
       node.appendChild(span);
     });
+    const visualLength = Math.max(1, expandSpineGlyphs(tokens).length);
+    node.style.setProperty('--spine-cjk-size', `${Math.max(0.48, Math.min(1, 9 / visualLength)).toFixed(3)}em`);
     return tokens;
   };
   const sourceToHref = (post) => {
@@ -835,8 +905,10 @@
   function openPanel(shouldScroll = true) {
     renderAllPosts();
     panel.hidden = false;
-    toggle.setAttribute('aria-expanded', 'true');
-    toggle.textContent = 'Hide all posts';
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.textContent = 'Hide all posts';
+    }
     if (shouldScroll) {
       panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -844,19 +916,20 @@
 
   function closePanel() {
     panel.hidden = true;
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.textContent = 'View all posts';
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = 'View all posts';
+    }
   }
 
-  toggle.addEventListener('click', (event) => {
-    event.preventDefault();
-    if (panel.hidden) openPanel(true);
-    else closePanel();
-  });
-
-  if (window.location.hash === '#all-posts') {
-    openPanel(false);
+  if (toggle) {
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (panel.hidden) openPanel(true);
+      else closePanel();
+    });
   }
+  openPanel(false);
 
   window.addEventListener('michel:site-theme-change', () => {
     if (list.dataset.rendered === '1') {
@@ -875,8 +948,8 @@
   function getAdminHref() {
     const { protocol, hostname, port } = window.location;
     const localHost = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
-    if (localHost && port !== '8787') return `${protocol}//${hostname}:8787/admin.html`;
-    return './admin.html';
+    if (localHost && port !== '8787') return `${protocol}//${hostname}:8787/admin.html?drafts=1`;
+    return './admin.html?drafts=1';
   }
 
   createLinks.forEach((link) => {
