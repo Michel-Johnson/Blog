@@ -7,17 +7,18 @@
     <meta name="supported-color-schemes" content="light" />
     <meta name="theme-color" content="#fbfaf7" />
     <title>Write · Michel Johnson</title>
-    <link rel="stylesheet" href="./styles.css?v=assistant-width-v19-20260716" />
+    <link rel="stylesheet" href="./styles.css?v=fold-blocks-v1-20260829" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+    <link rel="stylesheet" href="./assets/katex/katex.min.css?v=0.16.10-local-1" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
     <link rel="preload" href="./assets/fonts/noto-serif-sc-400.woff2" as="font" type="font/woff2" crossorigin />
     <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
+    <script src="./assets/katex/katex.min.js?v=0.16.10-local-1"></script>
+    <script src="./assets/katex/contrib/auto-render.min.js?v=0.16.10-local-1"></script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/build/highlight.min.js"></script>
     <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
+    <script src="./fold-blocks.js?v=fold-blocks-local-v1-20260829"></script>
     <style>
       :root {
         --writer-bg: #fbfaf7;
@@ -177,7 +178,111 @@
       }
 
       .admin-login[hidden],
+      .draft-inbox-page[hidden],
       .admin-workbench[hidden] {
+        display: none;
+      }
+
+      .draft-inbox-page {
+        width: min(1040px, calc(100vw - 48px));
+        margin: clamp(32px, 5vh, 64px) auto 80px;
+      }
+
+      .draft-inbox-top {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        border-bottom: 2px solid rgba(45,45,45,.18);
+        padding-bottom: 20px;
+      }
+
+      .draft-inbox-kicker {
+        margin: 0 0 8px;
+        color: #2d66d8;
+        font: 800 12px/1 var(--ui-font);
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+
+      .draft-inbox-title {
+        margin: 0;
+        color: var(--writer-ink);
+        font: 900 clamp(34px, 3.2vw, 42px)/1.08 var(--ui-font);
+      }
+
+      .draft-inbox-copy {
+        max-width: 640px;
+        margin: 12px 0 0;
+        color: var(--writer-muted);
+        font: 600 16px/1.7 var(--ui-font);
+      }
+
+      .draft-inbox-new {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        min-height: 54px;
+        border: 3px solid var(--writer-ink);
+        border-radius: 12px;
+        background: #ffdf62;
+        box-shadow: 6px 6px 0 var(--writer-ink);
+        color: var(--writer-ink);
+        font: 900 15px/1 var(--ui-font);
+        padding: 0 20px;
+        text-decoration: none;
+      }
+
+      .draft-inbox-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 28px;
+      }
+
+      .draft-inbox-card {
+        display: grid;
+        gap: 10px;
+        min-height: 132px;
+        border: 2px solid rgba(45,45,45,.76);
+        border-radius: 10px;
+        background: rgba(255,253,249,.76);
+        color: var(--writer-ink);
+        padding: 20px;
+        text-decoration: none;
+        transition: transform .16s ease, background .16s ease;
+      }
+
+      .draft-inbox-card:hover,
+      .draft-inbox-card:focus-visible {
+        background: #fff5bf;
+        outline: none;
+        transform: translateY(-2px);
+      }
+
+      .draft-inbox-card strong {
+        font: 850 22px/1.3 var(--ui-font);
+      }
+
+      .draft-inbox-card span,
+      .draft-inbox-empty {
+        color: var(--writer-muted);
+        font: 650 13px/1.55 var(--ui-font);
+      }
+
+      .draft-inbox-empty {
+        grid-column: 1 / -1;
+        border: 2px dashed rgba(45,45,45,.2);
+        border-radius: 10px;
+        padding: 28px;
+        text-align: center;
+      }
+
+      body.is-draft-inbox .chrome-actions .admin-auth-only {
+        display: none;
+      }
+
+      body.is-draft-inbox .admin-status {
         display: none;
       }
 
@@ -307,19 +412,26 @@
         margin: 0 0 22px;
       }
 
-      .admin-sidebar .document-title-row input {
+      .admin-sidebar .document-title-row textarea {
         appearance: none;
+        display: block;
         width: 100%;
+        min-height: 1.1em;
+        overflow: hidden;
+        resize: none;
         border: 0;
         border-radius: 0;
         background: transparent;
         color: var(--writer-ink);
-        font: 900 clamp(28px, 3vw, 40px)/1.1 var(--ui-font);
+        font-family: "Michel Sketch", "Comic Sans MS", "Marker Felt", "Trebuchet MS", cursive;
+        font-size: var(--article-title-size, 44px);
+        font-weight: 900;
+        line-height: var(--article-title-line-height, 1.08);
         outline: none;
         padding: 0;
       }
 
-      .admin-sidebar .document-title-row input:focus {
+      .admin-sidebar .document-title-row textarea:focus {
         box-shadow: none;
       }
 
@@ -477,13 +589,74 @@
       }
 
       .annotation-dialog {
-        width: min(560px, calc(100vw - 28px));
+        width: min(620px, calc(100vw - 28px));
         max-width: none;
         padding: 0;
         border: 0;
         border-radius: 8px;
         background: transparent;
         color: var(--writer-ink);
+      }
+
+      .editor-selection-actions {
+        position: fixed;
+        z-index: 220;
+        display: flex;
+        gap: 6px;
+        padding: 5px;
+        border: 2px solid var(--writer-ink);
+        border-radius: 8px;
+        background: #fffaf0;
+        box-shadow: 5px 6px 0 var(--writer-ink);
+      }
+
+      .editor-selection-actions button {
+        min-height: 38px;
+        padding: 0 13px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--writer-ink);
+        font: 800 14px/1 var(--ui-font);
+        cursor: pointer;
+      }
+
+      .editor-selection-actions button:last-child {
+        background: #ffe473;
+      }
+
+      .editor-selection-actions button[data-fold-selection] {
+        background: #f0e7d2;
+      }
+
+      .editor-selection-actions button:hover,
+      .editor-selection-actions button:focus-visible {
+        background: var(--writer-ink);
+        color: #fffdf8;
+        outline: none;
+      }
+
+      .editor-selection-actions button:disabled {
+        cursor: wait;
+        opacity: .6;
+      }
+
+      @media (max-width: 620px) {
+        .draft-inbox-title {
+          font-size: 30px;
+        }
+
+        .editor-selection-actions {
+          max-width: calc(100vw - 24px);
+          gap: 3px;
+          padding: 4px;
+        }
+
+        .editor-selection-actions button {
+          min-height: 36px;
+          padding: 0 9px;
+          font-size: 12px;
+        }
       }
 
       .annotation-dialog::backdrop {
@@ -493,43 +666,133 @@
 
       .annotation-dialog-card {
         display: grid;
-        gap: 14px;
-        padding: 24px;
+        gap: 18px;
+        padding: 22px;
         border: 3px solid var(--writer-ink);
         border-radius: 8px;
         background: #fffaf0;
         box-shadow: 9px 10px 0 var(--writer-ink);
       }
 
-      .annotation-dialog-kicker {
-        margin: 0;
-        color: #e45146;
-        font-family: var(--mono-font);
-        font-size: 13px;
-        font-weight: 800;
-        letter-spacing: .08em;
-        text-transform: uppercase;
-      }
-
-      .annotation-dialog h2,
-      .annotation-selected {
-        margin: 0;
-      }
-
-      .annotation-selected {
+      .annotation-dialog-title {
+        position: absolute;
+        width: 1px;
+        height: 1px;
         overflow: hidden;
-        padding: 10px 12px;
-        border-left: 4px solid #d49b2c;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      .annotation-live-stage {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+        padding: 20px;
+        border: 1px dashed #d8d1c4;
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 1px 1px, rgba(45, 45, 45, .07) 1px, transparent 1.2px) 0 0 / 18px 18px,
+          #fffdf8;
+      }
+
+      .annotation-selected {
+        justify-self: start;
+        max-width: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 4px 6px 3px;
+        border-radius: 3px;
         background: rgba(255, 224, 115, .28);
         font-family: var(--article-font);
+        font-size: 20px;
+        box-shadow: inset 0 -2px 0 #c58a24;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .annotation-link-fields {
+      .annotation-live-popover {
         display: grid;
-        grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr);
-        gap: 12px;
+        gap: 8px;
+        width: min(420px, 100%);
+        min-width: 0;
+        box-sizing: border-box;
+        padding: 16px 18px;
+        border: 2px solid #2d2d2d;
+        border-radius: 8px;
+        background: #fffaf0;
+        box-shadow: 4px 4px 0 #2d2d2d;
+        color: #2d2d2d;
+        font-family: var(--article-font);
+      }
+
+      .annotation-live-popover input,
+      .annotation-live-popover textarea,
+      .annotation-live-popover select {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        outline: 0;
+        background: transparent;
+        color: inherit;
+      }
+
+      .annotation-live-popover input:focus,
+      .annotation-live-popover textarea:focus,
+      .annotation-live-popover select:focus {
+        background: rgba(255, 221, 93, .18);
+        box-shadow: 0 0 0 3px rgba(197, 138, 36, .18);
+      }
+
+      .annotation-live-kind {
+        appearance: none;
+        justify-self: start;
+        width: auto !important;
+        color: #c15742 !important;
+        font: 800 11px/1.2 var(--mono-font);
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .annotation-live-title {
+        font: 700 17px/1.3 var(--article-font);
+      }
+
+      .annotation-live-title::placeholder,
+      .annotation-live-body::placeholder,
+      .annotation-live-link-label::placeholder,
+      .annotation-live-link-url::placeholder {
+        color: #8c8579;
+        opacity: 1;
+      }
+
+      .annotation-live-body {
+        display: block;
+        min-height: 72px;
+        resize: none;
+        overflow: hidden;
+        font: 400 15px/1.55 var(--article-font);
+        white-space: pre-wrap;
+      }
+
+      .annotation-live-source {
+        display: grid;
+        gap: 3px;
+        padding-top: 2px;
+      }
+
+      .annotation-live-link-label {
+        color: #245ca8 !important;
+        font: 700 13px/1.35 var(--mono-font);
+        text-decoration: underline;
+      }
+
+      .annotation-live-link-url {
+        color: #777065 !important;
+        font: 500 11px/1.35 var(--mono-font);
       }
 
       .annotation-dialog-actions {
@@ -586,7 +849,7 @@
         padding: 18px;
       }
 
-      .document-title-row input::placeholder,
+      .document-title-row textarea::placeholder,
       .markdown-pane textarea::placeholder {
         color: rgba(41,40,37,.32);
       }
@@ -706,6 +969,18 @@
         pointer-events: auto;
       }
 
+      .writer-math-line-formula.is-display {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        padding: .45em 0;
+        vertical-align: initial;
+      }
+
+      .writer-math-line-formula.is-display .katex-display {
+        margin: 0;
+      }
+
       .writer-math-block-overlay {
         display: flex;
         align-items: center;
@@ -786,7 +1061,7 @@
       .rich-editor .ProseMirror img:not([style]) {
         display: block;
         position: relative;
-        width: 42%;
+        width: auto;
         max-width: 100%;
         height: auto;
         margin: 1em auto;
@@ -794,7 +1069,7 @@
       }
 
       .rich-editor img.is-selected-writer-image:active {
-        cursor: grabbing;
+        cursor: default;
       }
 
       .image-drag-overlay {
@@ -857,6 +1132,159 @@
         white-space: nowrap;
       }
 
+      .image-layout-actions {
+        position: absolute;
+        right: 22px;
+        top: -42px;
+        display: flex;
+        gap: 4px;
+        pointer-events: auto;
+      }
+
+      .image-layout-actions button {
+        width: 28px;
+        height: 28px;
+        border: 1px solid rgba(41,40,37,.35);
+        border-radius: 999px;
+        background: rgba(255,253,249,.96);
+        color: var(--writer-ink);
+        font: 800 13px/1 var(--ui-font);
+        box-shadow: 0 4px 10px rgba(41,40,37,.1);
+        cursor: pointer;
+      }
+
+      .image-text-line {
+        position: fixed;
+        z-index: 61;
+        height: 18px;
+        pointer-events: none;
+        transform: translateY(-9px);
+      }
+
+      .image-text-line span {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 8px;
+        border-top: 1px dashed rgba(221,163,42,.72);
+      }
+
+      .image-text-line button {
+        position: absolute;
+        right: -7px;
+        top: 1px;
+        width: 16px;
+        height: 16px;
+        border: 0;
+        border-radius: 4px;
+        background: #dda32a;
+        box-shadow: 0 2px 5px rgba(41,40,37,.18);
+        cursor: ns-resize;
+        pointer-events: auto;
+      }
+
+      .writer-image-reservation {
+        position: relative;
+      }
+
+      .writer-layout-spacer {
+        display: block;
+        width: 100%;
+        min-height: 8px;
+        margin: 0;
+        border: 0;
+        background: transparent;
+        box-sizing: border-box;
+      }
+
+      .rich-editor .writer-layout-spacer {
+        position: relative;
+        outline: 1px dashed transparent;
+        cursor: ns-resize;
+      }
+
+      .rich-editor .writer-layout-spacer:hover,
+      .rich-editor .writer-layout-spacer.is-selected-writer-spacer {
+        outline-color: rgba(221,163,42,.68);
+        background: linear-gradient(180deg, transparent 0 49%, rgba(221,163,42,.18) 49% 51%, transparent 51%);
+      }
+
+      .rich-editor img.writer-layout-spacer-image {
+        width: 100% !important;
+        min-width: 100%;
+        min-height: 12px;
+        opacity: 0.12;
+        margin: 0 !important;
+        background: repeating-linear-gradient(135deg, transparent 0 8px, rgba(221,163,42,.55) 8px 10px);
+        cursor: pointer;
+      }
+
+      .rich-editor img.writer-layout-spacer-image:hover {
+        opacity: 0.45;
+      }
+
+      .rich-editor img.writer-layout-spacer-image.is-selected-writer-spacer {
+        opacity: 0.7;
+        outline: 2px dashed rgba(47,106,216,.8);
+        background: rgba(221,163,42,.18);
+      }
+
+      .image-placement-chooser {
+        position: fixed;
+        left: 50%;
+        bottom: max(24px, env(safe-area-inset-bottom));
+        z-index: 240;
+        width: min(520px, calc(100vw - 28px));
+        box-sizing: border-box;
+        border: 2px solid var(--writer-ink);
+        border-radius: 20px;
+        background: rgba(255,253,249,.98);
+        box-shadow: 6px 7px 0 rgba(41,40,37,.92), 0 18px 45px rgba(41,40,37,.18);
+        padding: 14px 16px;
+        transform: translateX(-50%);
+        font-family: var(--ui-font);
+      }
+
+      .image-placement-chooser[hidden] {
+        display: none;
+      }
+
+      .image-placement-chooser > strong,
+      .image-placement-chooser > span {
+        display: block;
+      }
+
+      .image-placement-chooser > span {
+        margin-top: 3px;
+        color: var(--writer-muted);
+        font-size: 13px;
+      }
+
+      .image-placement-chooser > div {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .image-placement-chooser button {
+        border: 2px solid var(--writer-ink);
+        border-radius: 12px;
+        background: #fffdfa;
+        color: var(--writer-ink);
+        font: 800 13px/1 var(--ui-font);
+        padding: 10px 13px;
+        cursor: pointer;
+      }
+
+      .image-placement-chooser button[data-image-placement="flow"] {
+        background: var(--writer-yellow);
+      }
+
+      .image-placement-chooser button[data-image-placement="cancel"] {
+        margin-left: auto;
+        padding-inline: 12px;
+      }
+
       .rich-editor .toastui-editor-ww-container,
       .rich-editor .toastui-editor-md-container {
         background: transparent;
@@ -891,6 +1319,24 @@
         min-height: 1px;
         opacity: 0;
         pointer-events: none;
+      }
+
+      .has-rich-editor.is-html-source-editor .rich-editor {
+        display: none;
+      }
+
+      .html-visual-editor {
+        display: none;
+        width: 100%;
+        min-height: calc(100vh - 214px);
+        height: auto;
+        overflow: hidden;
+        border: 0;
+        background: #fffefa;
+      }
+
+      .has-rich-editor.is-html-source-editor .html-visual-editor {
+        display: block;
       }
 
       .paste-hint {
@@ -995,6 +1441,46 @@
         padding: 8px 10px;
       }
 
+      .fold-block {
+        margin: 1.15em 0;
+        border: 1px solid #d5c8aa;
+        border-radius: 9px;
+        background: #fffaf0;
+        overflow: clip;
+      }
+
+      .fold-block-editor-shell {
+        width: 100%;
+      }
+
+      .fold-block > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 54px;
+        padding: 0 18px;
+        cursor: pointer;
+        color: var(--writer-ink);
+        background: linear-gradient(90deg, #fff0ac, #fffaf0);
+        font: 750 15px/1.35 var(--ui-font);
+        list-style: none;
+      }
+
+      .fold-block > summary::-webkit-details-marker { display: none; }
+      .fold-block > summary small {
+        color: var(--writer-muted);
+        font: 650 12px/1 var(--ui-font);
+      }
+
+      .fold-block__body {
+        padding: 2px 18px 14px;
+        border-top: 1px dashed #ddcfad;
+      }
+
+      .fold-block__body > :first-child { margin-top: 14px; }
+      .fold-block__body > :last-child { margin-bottom: 0; }
+
       .is-dragging .markdown-pane {
         box-shadow: inset 0 0 0 3px rgba(45,102,216,.2);
       }
@@ -1033,6 +1519,24 @@
           grid-template-rows: minmax(520px, 1fr) minmax(420px, 1fr);
         }
 
+        .draft-inbox-page {
+          width: min(100% - 28px, 680px);
+          margin-top: 28px;
+        }
+
+        .draft-inbox-top {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .draft-inbox-new {
+          justify-content: center;
+        }
+
+        .draft-inbox-list {
+          grid-template-columns: 1fr;
+        }
+
         .preview-pane {
           border-left: 0;
           border-top: 1px solid var(--writer-line);
@@ -1065,35 +1569,38 @@
           font-size: 18px;
         }
 
-        .annotation-link-fields {
-          grid-template-columns: 1fr;
+        .annotation-live-stage {
+          padding: 14px;
         }
       }
     </style>
-    <link rel="stylesheet" href="./article-content.css?v=inline-notes-v3-20260719" />
-    <link rel="stylesheet" href="./mobile.css?v=assistant-rail-summary-v10-20260715" />
-    <link rel="stylesheet" href="./responsive.css?v=assistant-width-v19-20260716" />
+    <link rel="stylesheet" href="./article-content.css?v=html-reference-type-v1-20260814" />
+    <link rel="stylesheet" href="./mobile.css?v=assistant-dock-v45-20260805" />
+    <link rel="stylesheet" href="./responsive.css?v=warm-paper-v25-20260814" />
+    <link rel="stylesheet" href="./ask-ai-border-reset.css?v=borderless-v48-20260807" />
+    <link rel="stylesheet" href="./ask-ai-shell-borderless-v49.css?v=warm-paper-v57-20260814" />
+    <link rel="stylesheet" href="./reader-editor.css?v=warm-paper-v17-20260814" />
   </head>
-  <body class="admin-body intro-done">
-    <main class="admin-app">
-      <header class="admin-chrome">
-        <div class="chrome-left">
-          <div class="chrome-dots" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
+  <body class="admin-body post-body intro-done">
+    <main class="admin-app post-shell">
+      <div class="paper-noise" aria-hidden="true"></div>
+
+      <nav class="site-nav post-nav reader-editor-site-nav" aria-label="Primary navigation">
+        <a class="brand-lockup" href="./?home=1" aria-label="Michel Johnson home">
+          <span class="brand-dot"></span>
+          <span>Michel Johnson</span>
+        </a>
+        <div class="reader-editor-nav-actions">
+          <p class="admin-status" data-save-status aria-live="polite">Locked</p>
+          <div class="chrome-actions">
+            <button class="admin-button admin-auth-only" type="button" data-lease-takeover hidden>Continue here</button>
+            <button class="admin-button admin-auth-only" type="button" data-undo>Undo</button>
+            <button class="admin-button admin-auth-only" type="button" data-unpublish hidden>Move to drafts</button>
+            <button class="admin-button primary admin-auth-only" type="button" data-publish>Publish</button>
+            <button class="admin-button danger admin-auth-only" type="button" data-delete-post>Delete</button>
           </div>
-          <a class="chrome-title" href="./index.html?home=1&theme=sketch#blog">Michel Writer</a>
         </div>
-        <p class="admin-status" data-save-status aria-live="polite">Locked</p>
-        <div class="chrome-actions">
-          <button class="admin-button admin-auth-only" type="button" data-undo>Undo</button>
-          <button class="admin-button admin-auth-only" type="button" data-save-draft>Save</button>
-          <button class="admin-button primary admin-auth-only" type="button" data-publish>Publish</button>
-          <button class="admin-button danger admin-auth-only" type="button" data-delete-post>Delete</button>
-          <button class="admin-button danger admin-auth-only" type="button" data-logout>Logout</button>
-        </div>
-      </header>
+      </nav>
 
       <section class="admin-login" data-login-panel>
         <form data-login-form>
@@ -1109,60 +1616,89 @@
         </form>
       </section>
 
-      <section class="admin-workbench" data-workbench data-mobile-view="write" hidden>
+      <section class="draft-inbox-page" data-draft-inbox hidden>
+        <div class="draft-inbox-top">
+          <div>
+            <p class="draft-inbox-kicker">Writer</p>
+            <h1 class="draft-inbox-title">Choose a draft</h1>
+            <p class="draft-inbox-copy">Open an existing draft to continue writing, or start with a clean article.</p>
+          </div>
+          <a class="draft-inbox-new" href="./admin.html?new=1">+ New article</a>
+        </div>
+        <div class="draft-inbox-list" data-draft-inbox-list aria-live="polite"></div>
+      </section>
+
+      <section class="admin-workbench post-page" data-workbench data-mobile-view="write" hidden>
         <nav class="mobile-workbench-tabs" aria-label="Writer views">
           <button type="button" data-mobile-view-button="write" aria-selected="true">Write</button>
           <button type="button" data-mobile-view-button="details" aria-selected="false">Details</button>
           <button type="button" data-mobile-view-button="preview" aria-selected="false">Preview</button>
         </nav>
-        <aside class="admin-sidebar">
-          <a class="sidebar-heading" href="./index.html?home=1&theme=sketch#blog">&lt;- Back to blog shelf</a>
-          <div class="document-title-row">
-            <input data-post-title type="text" placeholder="Untitled" aria-label="Post title" />
+        <aside class="admin-sidebar post-hero">
+          <div class="post-top-row reader-editor-top-row">
+            <a class="sidebar-heading back-link" data-editor-back href="./index.html?home=1&theme=sketch#blog">Back to blog shelf</a>
+            <span class="reader-editor-view-count" data-post-view-count hidden aria-label="Post views"></span>
           </div>
-          <section class="draft-drawer" aria-label="Drafts">
-            <div class="draft-drawer-head">
-              <span>Drafts</span>
-              <div class="draft-actions">
-                <button class="draft-mini-button" type="button" data-new-draft>New</button>
-                <button class="draft-mini-button" type="button" data-refresh-drafts>Refresh</button>
-              </div>
-            </div>
-            <div class="draft-list" data-draft-list></div>
-          </section>
-          <label class="admin-field">
-            Category
-            <input data-post-category type="text" value="Notes" />
-          </label>
-          <label class="admin-field">
-            Date
-            <input data-post-date type="date" />
-          </label>
-          <label class="admin-field">
-            Excerpt <small data-excerpt-mode>GLM auto summary</small>
-            <textarea data-post-excerpt rows="4" placeholder="Generated from the full article when you save"></textarea>
-          </label>
-          <label class="admin-field">
-            Tags
-            <input data-post-tags type="text" placeholder="AI, Notes, Math" />
-          </label>
-          <label class="admin-field">
-            Slug
-            <input data-post-slug type="text" placeholder="auto-generated-if-empty" />
-          </label>
-          <div class="admin-upload">
-            <label class="admin-field">
-              Attachment
-              <input data-image-input type="file" accept="image/*,application/pdf,.pdf" />
+          <div class="reader-editor-kicker post-kicker">
+            <label>
+              <span class="reader-editor-sr-only">Category</span>
+              <input data-post-category type="text" value="Notes" aria-label="Category" />
             </label>
-            <button class="admin-button" type="button" data-upload-image>Insert file</button>
+            <span aria-hidden="true">·</span>
+            <label>
+              <span class="reader-editor-sr-only">Date</span>
+              <input data-post-date type="date" aria-label="Date" />
+            </label>
           </div>
+          <h1 class="document-title-row reader-editor-title">
+            <textarea data-post-title rows="1" placeholder="Untitled" aria-label="Post title"></textarea>
+          </h1>
+          <div class="reader-editor-excerpt-row">
+            <label class="admin-field reader-editor-excerpt">
+              <span class="reader-editor-sr-only">Excerpt</span>
+              <small data-excerpt-mode>Auto summary</small>
+              <span class="post-excerpt reader-editor-excerpt-surface">
+                <textarea data-post-excerpt rows="1" placeholder="Generate a summary from the full article"></textarea>
+              </span>
+            </label>
+            <button
+              class="reader-editor-summary-button"
+              type="button"
+              data-generate-summary
+              aria-label="Generate summary"
+              title="Generate summary"
+            ><span aria-hidden="true">✦</span> Summary</button>
+          </div>
+          <section class="reader-editor-details" data-editor-details-panel hidden>
+            <label class="admin-field">
+              Tags
+              <input data-post-tags type="text" placeholder="AI, Notes, Math" />
+            </label>
+            <label class="admin-field">
+              Slug
+              <input data-post-slug type="text" placeholder="auto-generated-if-empty" />
+            </label>
+            <div class="admin-upload">
+              <label class="admin-field">
+                Attachment
+                <input data-image-input type="file" accept="image/*,application/pdf,.pdf" />
+              </label>
+              <button class="admin-button" type="button" data-upload-image>Insert file</button>
+            </div>
+          </section>
         </aside>
 
-        <section class="admin-document">
+        <section class="admin-document post-paper">
           <div class="editor-grid">
             <section class="markdown-pane" data-drop-zone>
-              <div class="rich-editor" data-rich-editor></div>
+              <div class="rich-editor post-content" data-rich-editor></div>
+              <iframe
+                class="html-visual-editor"
+                data-html-visual-editor
+                sandbox="allow-same-origin"
+                scrolling="no"
+                title="HTML visual editor"
+              ></iframe>
               <textarea class="markdown-source" data-markdown spellcheck="true" placeholder="Start writing..."></textarea>
               <span class="paste-hint">Paste images or drag files</span>
             </section>
@@ -1171,6 +1707,53 @@
             </section>
           </div>
         </section>
+
+        <button
+          class="reader-assistant-launcher reader-assistant-launcher--pet"
+          type="button"
+          data-assistant-launcher
+          aria-expanded="false"
+          aria-controls="writer-assistant"
+          aria-label="Ask AI"
+          title="Ask AI"
+        >
+          <img class="reader-assistant-pet-frame" data-assistant-pet-frame src="./assets/jerry-pet/idle/00.png?v=jerrydeskpet-v3-20260811" alt="" aria-hidden="true">
+          <span class="reader-assistant-pet-label">Ask AI</span>
+        </button>
+        <aside
+          class="reader-assistant"
+          id="writer-assistant"
+          data-assistant-panel
+          hidden
+          aria-label="Article assistant"
+        >
+          <div
+            class="reader-assistant-resize-handle"
+            data-assistant-resize-handle
+            role="button"
+            aria-label="Resize article assistant"
+            aria-describedby="writer-assistant"
+            tabindex="0"
+          ><span aria-hidden="true"></span></div>
+          <header>
+            <div class="assistant-header-context">
+              <strong class="assistant-header-quote" data-assistant-quote hidden></strong>
+            </div>
+            <button type="button" data-assistant-close aria-label="Close assistant">×</button>
+          </header>
+          <div class="reader-assistant-messages" data-assistant-messages aria-live="polite"></div>
+          <form data-assistant-form>
+            <textarea
+              data-assistant-input
+              rows="1"
+              maxlength="2000"
+              enterkeyhint="send"
+              placeholder=""
+              aria-label="Ask AI"
+            ></textarea>
+            <button type="button" data-assistant-send aria-label="Send question" title="Send question">↑</button>
+          </form>
+        </aside>
       </section>
 
     </main>
@@ -1187,36 +1770,65 @@
       </form>
     </dialog>
 
+    <dialog class="delete-dialog" data-unpublish-dialog>
+      <form class="delete-dialog-card" method="dialog">
+        <p class="delete-dialog-kicker">Move to drafts</p>
+        <h2>Withdraw this article?</h2>
+        <p class="delete-dialog-copy">The article will disappear from the public blog and return to your draft list. You can publish it again later.</p>
+        <div class="delete-dialog-actions">
+          <button class="admin-button" type="submit" value="cancel">Cancel</button>
+          <button class="admin-button" type="submit" value="confirm">Move to drafts</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="annotation-dialog" data-annotation-dialog>
       <form class="annotation-dialog-card" data-annotation-form method="dialog">
-        <p class="annotation-dialog-kicker">Hover annotation</p>
-        <h2 data-annotation-heading>Explain selected text</h2>
-        <p class="annotation-selected" data-annotation-selected></p>
-        <label class="admin-field">
-          Kind
-          <select name="type">
-            <option value="note">Explanation</option>
-            <option value="definition">Definition</option>
-            <option value="source">Source</option>
-          </select>
-        </label>
-        <label class="admin-field">
-          Heading
-          <input name="title" type="text" maxlength="120" placeholder="Optional short heading" />
-        </label>
-        <label class="admin-field">
-          Content
-          <textarea name="body" rows="5" maxlength="1200" placeholder="What should appear on hover?" required></textarea>
-        </label>
-        <div class="annotation-link-fields">
-          <label class="admin-field">
-            Link label
-            <input name="label" type="text" maxlength="80" placeholder="Read the source" />
-          </label>
-          <label class="admin-field">
-            Link URL
-            <input name="url" type="url" maxlength="1000" placeholder="https://..." />
-          </label>
+        <h2 class="annotation-dialog-title" data-annotation-heading>Edit hover annotation</h2>
+        <div class="annotation-live-stage">
+          <p class="annotation-selected" data-annotation-selected></p>
+          <div class="annotation-live-popover">
+            <select class="annotation-live-kind" name="type" aria-label="Annotation kind">
+              <option value="note">Note</option>
+              <option value="definition">Definition</option>
+              <option value="source">Source</option>
+            </select>
+            <input
+              class="annotation-live-title"
+              name="title"
+              type="text"
+              maxlength="120"
+              aria-label="Annotation heading"
+              placeholder="Add a short heading"
+            />
+            <textarea
+              class="annotation-live-body"
+              name="body"
+              rows="3"
+              maxlength="1200"
+              aria-label="Annotation content"
+              placeholder="Write the note here..."
+              required
+            ></textarea>
+            <div class="annotation-live-source">
+              <input
+                class="annotation-live-link-label"
+                name="label"
+                type="text"
+                maxlength="80"
+                aria-label="Source link label"
+                placeholder="Add a source link"
+              />
+              <input
+                class="annotation-live-link-url"
+                name="url"
+                type="url"
+                maxlength="1000"
+                aria-label="Source link URL"
+                placeholder="https://..."
+              />
+            </div>
+          </div>
         </div>
         <div class="annotation-dialog-actions">
           <button class="admin-button danger" type="button" data-annotation-remove hidden>Remove</button>
@@ -1227,7 +1839,9 @@
       </form>
     </dialog>
 
-    <script src="./inline-annotations.js?v=inline-notes-v2-20260719"></script>
-    <script src="./admin.js?v=inline-notes-v2-20260719"></script>
+    <script src="./inline-annotations.js?v=annotation-popover-fix-20260813"></script>
+    <script src="./admin.js?v=fold-blocks-v1-20260829"></script>
+  <script src="./reader-editor.js?v=remove-details-button-v13-20260812"></script>
+    <script src="./assistant.js?v=assistant-stream-scroll-v47-20260822"></script>
   </body>
 </html>

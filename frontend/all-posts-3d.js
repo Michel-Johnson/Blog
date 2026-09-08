@@ -1,5 +1,5 @@
-import * as THREE from './node_modules/three/build/three.module.js';
-import { RoundedBoxGeometry } from './node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import * as THREE from './lib/three/three.module.js';
+import { RoundedBoxGeometry } from './lib/three/RoundedBoxGeometry.js';
 
 const palette = ['#efe3b9', '#e7e2d8', '#e9cfd0', '#dce9df', '#e7dfcf', '#dedbea'];
 const activeScenes = [];
@@ -7,60 +7,25 @@ let mounted = false;
 let mountedLayout = null;
 let mountedPosts = [];
 let remountTimer = 0;
+let mountedHost = null;
+let mountedOptions = {};
 
-const LIGHTING_STOPS = [
-  { hour: 0, period: 'night', background: '#140907', sky: '#7f8eaa', ground: '#25120e', hemisphere: 0.72, key: '#ffbb78', keyIntensity: 1.15, keyPosition: [4.8, 3.8, 5.4], fillIntensity: 1.1, exposure: 0.76 },
-  { hour: 5.5, period: 'dawn', background: '#24100c', sky: '#b8c6d9', ground: '#3d2118', hemisphere: 1.2, key: '#ffb477', keyIntensity: 2.35, keyPosition: [-6.2, 3.4, 6.2], fillIntensity: 0.55, exposure: 0.88 },
-  { hour: 8.5, period: 'morning', background: '#2d120c', sky: '#fff1d8', ground: '#4d2b1e', hemisphere: 1.85, key: '#ffd8a8', keyIntensity: 3.5, keyPosition: [-5.4, 6.2, 6.5], fillIntensity: 0.2, exposure: 0.98 },
-  { hour: 12.5, period: 'noon', background: '#31130c', sky: '#fff9ed', ground: '#563322', hemisphere: 2.2, key: '#fff0d1', keyIntensity: 4.25, keyPosition: [-1.8, 8.6, 7.2], fillIntensity: 0.08, exposure: 1.04 },
-  { hour: 16.5, period: 'afternoon', background: '#2d1712', sky: '#f8ead8', ground: '#44332a', hemisphere: 1.96, key: '#ffddb6', keyIntensity: 3.6, keyPosition: [4.6, 5.8, 6.2], fillIntensity: 0.16, exposure: 1.0 },
-  { hour: 19, period: 'sunset', background: '#2b1d18', sky: '#f4eee6', ground: '#4a3d36', hemisphere: 1.75, key: '#fff0d8', keyIntensity: 3.15, keyPosition: [6.4, 3.7, 5.8], fillIntensity: 0.24, exposure: 1.0 },
-  { hour: 22, period: 'night', background: '#150c0b', sky: '#96a0b5', ground: '#241817', hemisphere: 0.84, key: '#ffd1a2', keyIntensity: 1.3, keyPosition: [4.9, 3.6, 5.2], fillIntensity: 0.82, exposure: 0.8 },
-  { hour: 24, period: 'night', background: '#140907', sky: '#7f8eaa', ground: '#25120e', hemisphere: 0.72, key: '#ffbb78', keyIntensity: 1.15, keyPosition: [4.8, 3.8, 5.4], fillIntensity: 1.1, exposure: 0.76 }
-];
-
-function currentLightingHour() {
-  const overrideRaw = new URLSearchParams(window.location.search).get('lightHour');
-  const override = overrideRaw === null ? Number.NaN : Number(overrideRaw);
-  if (Number.isFinite(override) && override >= 0 && override <= 24) return override;
-  const now = new Date();
-  return now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
-}
-
-function interpolateLighting(hour) {
-  const normalized = THREE.MathUtils.clamp(hour, 0, 24);
-  let from = LIGHTING_STOPS[0];
-  let to = LIGHTING_STOPS[1];
-  for (let index = 0; index < LIGHTING_STOPS.length - 1; index += 1) {
-    if (normalized >= LIGHTING_STOPS[index].hour && normalized <= LIGHTING_STOPS[index + 1].hour) {
-      from = LIGHTING_STOPS[index];
-      to = LIGHTING_STOPS[index + 1];
-      break;
-    }
-  }
-  const span = Math.max(to.hour - from.hour, 0.001);
-  const linear = THREE.MathUtils.clamp((normalized - from.hour) / span, 0, 1);
-  const mix = linear * linear * (3 - 2 * linear);
-  const color = (start, end) => new THREE.Color(start).lerp(new THREE.Color(end), mix);
-  const number = (start, end) => THREE.MathUtils.lerp(start, end, mix);
-  return {
-    hour: normalized,
-    period: mix < 0.5 ? from.period : to.period,
-    background: color(from.background, to.background),
-    sky: color(from.sky, to.sky),
-    ground: color(from.ground, to.ground),
-    hemisphere: number(from.hemisphere, to.hemisphere),
-    key: color(from.key, to.key),
-    keyIntensity: number(from.keyIntensity, to.keyIntensity),
-    keyPosition: from.keyPosition.map((value, index) => number(value, to.keyPosition[index])),
-    fillIntensity: number(from.fillIntensity, to.fillIntensity),
-    exposure: number(from.exposure, to.exposure)
-  };
-}
+const FIXED_LIGHTING = Object.freeze({
+  period: 'fixed',
+  sky: '#fbf4e9',
+  ground: '#674b3a',
+  hemisphere: 2.05,
+  key: '#f2dfc5',
+  keyIntensity: 3.65,
+  keyPosition: [-1.8, 8.6, 7.2],
+  fillIntensity: 0.06,
+  exposure: 1
+});
 
 function destroyActiveScenes() {
-  activeScenes.forEach(({ scene, renderer, observer, visibilityObserver, lightingTimer }) => {
-    window.clearInterval(lightingTimer);
+  activeScenes.forEach(({ scene, renderer, observer, visibilityObserver, onHashChange, frame }) => {
+    cancelAnimationFrame(frame.id);
+    window.removeEventListener('hashchange', onHashChange);
     observer?.disconnect();
     visibilityObserver?.disconnect();
     scene.traverse((node) => {
@@ -73,6 +38,7 @@ function destroyActiveScenes() {
       });
     });
     renderer.dispose();
+    renderer.forceContextLoss();
   });
   activeScenes.length = 0;
 }
@@ -80,7 +46,7 @@ function destroyActiveScenes() {
 // The cabinet changes structure when its content area can no longer hold two
 // bays. Keep this threshold independent from phone/tablet device labels: a
 // narrow split-screen window should use the compact stack as well.
-const CABINET_TWO_COLUMN_MIN = 480;
+const CABINET_TWO_COLUMN_MIN = 1100;
 
 function usesCompactCabinet(host = null) {
   const availableWidth = host?.clientWidth || document.documentElement.clientWidth || window.innerWidth;
@@ -159,9 +125,9 @@ function chooseLatinSpineLayout(ctx, title, width, height) {
   const normalized = normalizeSpineTitle(title);
   const words = normalized.split(' ').filter(Boolean);
   const maxLineCount = Math.min(3, Math.max(1, words.length));
-  const availableLength = height - 300;
+  const availableLength = height - 380;
   const availableWidth = width - 82;
-  const maxFontSize = width * 0.46;
+  const maxFontSize = width * 0.34;
   const minimumRatios = [0.22, 0.205, 0.175];
   const minimumReadableSizes = [180, 150, 126];
   let fallback = null;
@@ -212,11 +178,11 @@ function chooseLatinSpineLayout(ctx, title, width, height) {
 
 function makeWoodTexture(renderer) {
   return canvasTexture(renderer, 1024, 512, (ctx, width, height) => {
-    ctx.fillStyle = '#a96635';
+    ctx.fillStyle = '#a97851';
     ctx.fillRect(0, 0, width, height);
     for (let x = 8; x < width; x += 18) {
       const alpha = 0.025 + ((x / 18) % 5) * 0.012;
-      ctx.strokeStyle = `rgba(61, 31, 15, ${alpha})`;
+      ctx.strokeStyle = `rgba(75, 54, 39, ${alpha * 0.82})`;
       ctx.lineWidth = x % 54 === 0 ? 3 : 1;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -262,7 +228,7 @@ function makeSpineTexture(renderer, title, color, spineWidth, spineHeight) {
     ctx.textBaseline = 'middle';
     const normalizedTitle = normalizeSpineTitle(title);
     const isLatin = /^[\x00-\x7f]+$/.test(normalizedTitle);
-    const maxFont = width * (isLatin ? 0.44 : 0.42);
+    const maxFont = width * 0.34;
     let fontSize = maxFont;
     const setFont = () => { ctx.font = `700 ${Math.round(fontSize)}px Georgia, "Noto Serif SC", serif`; };
     setFont();
@@ -279,8 +245,9 @@ function makeSpineTexture(renderer, title, color, spineWidth, spineHeight) {
       typography.lines.forEach((line, index) => ctx.fillText(line, 0, startY + index * lineGap));
       ctx.restore();
     } else {
-      const chars = Array.from(title);
-      const display = chars.length > 10 ? [...chars.slice(0, 9), '…'] : chars;
+      const display = Array.from(normalizedTitle);
+      fontSize = Math.min(maxFont, (height - 360) / Math.max(display.length * 1.08, 1));
+      setFont();
       const lineHeight = fontSize * 1.08;
       const startY = height * 0.5 - ((display.length - 1) * lineHeight) * 0.5;
       display.forEach((char, index) => ctx.fillText(char, width * 0.5, startY + index * lineHeight));
@@ -345,9 +312,9 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
   const columnCount = compactLayout ? 1 : 2;
   const rowCount = Math.max(1, Math.ceil(groups.length / columnCount));
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2d0e08);
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 3));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -372,57 +339,74 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
   fill.position.set(0, 2.8, 4.8);
   scene.add(fill);
 
-  const refreshLighting = () => {
-    const lighting = interpolateLighting(currentLightingHour());
-    scene.background.copy(lighting.background);
-    hemisphere.color.copy(lighting.sky);
-    hemisphere.groundColor.copy(lighting.ground);
-    hemisphere.intensity = lighting.hemisphere;
-    key.color.copy(lighting.key);
-    key.intensity = lighting.keyIntensity;
-    key.position.set(...lighting.keyPosition);
-    fill.intensity = lighting.fillIntensity;
-    renderer.toneMappingExposure = lighting.exposure;
-    host.dataset.lightingPeriod = lighting.period;
-    host.dataset.lightingHour = lighting.hour.toFixed(2);
-  };
-  refreshLighting();
-  const lightingTimer = window.setInterval(refreshLighting, 60_000);
+  hemisphere.color.set(FIXED_LIGHTING.sky);
+  hemisphere.groundColor.set(FIXED_LIGHTING.ground);
+  hemisphere.intensity = FIXED_LIGHTING.hemisphere;
+  key.color.set(FIXED_LIGHTING.key);
+  key.intensity = FIXED_LIGHTING.keyIntensity;
+  key.position.set(...FIXED_LIGHTING.keyPosition);
+  fill.intensity = FIXED_LIGHTING.fillIntensity;
+  renderer.toneMappingExposure = FIXED_LIGHTING.exposure;
+  host.dataset.lightingPeriod = FIXED_LIGHTING.period;
+  delete host.dataset.lightingHour;
 
   const woodMap = makeWoodTexture(renderer);
   const wood = new THREE.MeshStandardMaterial({ color: 0xffffff, map: woodMap, roughness: 0.78 });
-  const darkWood = new THREE.MeshStandardMaterial({ color: 0x60351f, roughness: 0.84 });
+  const darkWood = new THREE.MeshStandardMaterial({
+    color: 0x765749,
+    roughness: 1,
+    metalness: 0,
+    emissive: 0x24140f,
+    emissiveIntensity: 0.12
+  });
   const paper = new THREE.MeshStandardMaterial({ color: 0xe9dfc8, roughness: 0.96 });
   const pageEdge = new THREE.MeshStandardMaterial({ map: makePageTexture(renderer), roughness: 0.96 });
   const materials = { paper, pageEdge };
   const bayHeight = 5.55;
   const cabinetWidth = compactLayout ? 9.6 : 27.2;
   const cabinetHeight = rowCount * bayHeight + 0.45;
-  const cabinetDepth = 3.25;
-  const sideX = cabinetWidth * 0.5 - 0.22;
-  const innerWidth = cabinetWidth - 0.88;
-  const bottomLevel = -cabinetHeight * 0.5 + 0.21;
+  const cabinetDepth = 2.72;
+  const frameThickness = 0.3;
+  const sideX = cabinetWidth * 0.5 - frameThickness * 0.5;
+  const innerWidth = cabinetWidth - frameThickness * 2;
+  const bottomLevel = -cabinetHeight * 0.5 + frameThickness * 0.5;
   const shelfLevels = Array.from({ length: rowCount + 1 }, (_, index) => bottomLevel + index * bayHeight);
-  const addShelf = (size, position, material = wood) => {
+  const addShelf = (size, position, material = wood, shadowOptions = {}) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), material);
     mesh.position.copy(position);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = shadowOptions.castShadow ?? true;
+    mesh.receiveShadow = shadowOptions.receiveShadow ?? true;
     scene.add(mesh);
+    return mesh;
   };
-  addShelf(new THREE.Vector3(innerWidth, cabinetHeight - 0.84, 0.18), new THREE.Vector3(0, 0.22, -1.57), darkWood);
-  shelfLevels.forEach((level) => {
-    addShelf(new THREE.Vector3(innerWidth, 0.42, cabinetDepth), new THREE.Vector3(0, level, -0.05));
+  addShelf(
+    // Extend the back panel behind the top and bottom rails. A flush fit can
+    // expose a bright sub-pixel seam when the cabinet is viewed in perspective.
+    new THREE.Vector3(innerWidth, cabinetHeight - 0.1, 0.16),
+    new THREE.Vector3(0, 0, -1.31),
+    darkWood,
+    { castShadow: false, receiveShadow: false }
+  );
+  shelfLevels.forEach((level, index) => {
+    // The outer rails cap the side panels across the cabinet's full width.
+    // Keeping them at the inner width exposes the side-panel corner in
+    // perspective, which reads as an accidental tab at the top-left edge.
+    const isOuterRail = index === 0 || index === shelfLevels.length - 1;
+    const railWidth = isOuterRail ? cabinetWidth : innerWidth;
+    addShelf(new THREE.Vector3(railWidth, frameThickness, cabinetDepth), new THREE.Vector3(0, level, -0.05));
   });
-  const sidePanelY = -0.02;
-  addShelf(new THREE.Vector3(0.44, cabinetHeight, cabinetDepth), new THREE.Vector3(-sideX, sidePanelY, -0.05));
-  addShelf(new THREE.Vector3(0.44, cabinetHeight, cabinetDepth), new THREE.Vector3(sideX, sidePanelY, -0.05));
+  // Fit the side panels exactly between the outer faces of the top and bottom
+  // rails. Full-height panels poke above the rail as a triangular "ear" once
+  // the perspective camera reveals their top faces.
+  const sidePanelHeight = cabinetHeight - frameThickness;
+  addShelf(new THREE.Vector3(frameThickness, sidePanelHeight, cabinetDepth), new THREE.Vector3(-sideX, 0, -0.05));
+  addShelf(new THREE.Vector3(frameThickness, sidePanelHeight, cabinetDepth), new THREE.Vector3(sideX, 0, -0.05));
   if (!compactLayout) {
     for (let row = 0; row < rowCount; row += 1) {
       const lower = shelfLevels[row];
       const upper = shelfLevels[row + 1];
       addShelf(
-        new THREE.Vector3(0.38, upper - lower - 0.42, cabinetDepth),
+        new THREE.Vector3(0.28, upper - lower - frameThickness, cabinetDepth),
         new THREE.Vector3(0, (lower + upper) * 0.5, -0.05)
       );
     }
@@ -464,7 +448,7 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       bounds.setFromObject(pivot);
       pivot.userData.shelfGap = Number((bounds.min.y - shelfSurfaceY).toFixed(4));
       pivot.userData.bookDepth = Number(data.depth.toFixed(4));
-      const shelfFrontZ = 1.54;
+      const shelfFrontZ = cabinetDepth * 0.5 - 0.085;
       pivot.position.z += shelfFrontZ - bounds.max.z;
       pivot.updateMatrixWorld(true);
       bounds.setFromObject(pivot);
@@ -532,7 +516,12 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       return;
     }
     const post = hovered.userData.post;
-    tooltip.innerHTML = `<strong>${post.title}</strong><span>${post.excerpt}</span><small>${post.category}${post.date ? ` · ${post.date}` : ''}</small>`;
+    tooltip.replaceChildren();
+    for (const [tag, value] of [['strong', post.title], ['span', post.excerpt], ['small', `${post.category}${post.date ? ` · ${post.date}` : ''}`]]) {
+      const text = document.createElement(tag);
+      text.textContent = value || '';
+      tooltip.append(text);
+    }
     const width = Math.min(420, window.innerWidth - 32);
     tooltip.style.left = `${Math.max(16, Math.min(event.clientX + 14, window.innerWidth - width - 16))}px`;
     tooltip.style.top = `${Math.max(16, Math.min(event.clientY + 14, window.innerHeight - 170))}px`;
@@ -540,7 +529,7 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
   };
   renderer.domElement.addEventListener('pointermove', pick);
   renderer.domElement.addEventListener('pointerleave', () => { hovered = null; tooltip?.classList.remove('is-visible'); });
-  renderer.domElement.addEventListener('pointerdown', (event) => { pointerDown = { x: event.clientX, y: event.clientY }; });
+  renderer.domElement.addEventListener('pointerdown', (event) => { pick(event); pointerDown = { x: event.clientX, y: event.clientY }; });
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!pointerDown || !hovered || Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 5) return;
     window.location.href = hovered.userData.post.href;
@@ -571,7 +560,7 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       const bayLeft = column === 0 ? -sideX + 0.72 : 0.72;
       const upperBeamY = shelfLevels[rowCount - row];
       const anchorX = bayLeft + 1.28;
-      const anchor = new THREE.Vector3(anchorX, upperBeamY, 1.59).project(camera);
+      const anchor = new THREE.Vector3(anchorX, upperBeamY, cabinetDepth * 0.5 + 0.02).project(camera);
       const halfLabelWidth = Math.max(label.offsetWidth * 0.5, 1);
       const halfLabelHeight = Math.max(label.offsetHeight * 0.5, 1);
       const projectedLeft = (anchor.x * 0.5 + 0.5) * width;
@@ -598,8 +587,10 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       attributeFilter: ['hidden', 'class', 'style']
     });
   }
-  window.addEventListener('hashchange', () => window.requestAnimationFrame(resize), { passive: true });
+  const onHashChange = () => window.requestAnimationFrame(resize);
+  window.addEventListener('hashchange', onHashChange, { passive: true });
   resize();
+  const frame = { id: 0 };
   const render = () => {
     if (!renderer.domElement.isConnected) return;
     pivots.forEach((pivot) => {
@@ -612,30 +603,74 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       pivot.position.z = pivot.userData.restZ + pull * 0.3;
     });
     renderer.render(scene, camera);
-    requestAnimationFrame(render);
+    frame.id = requestAnimationFrame(render);
   };
   render();
-  activeScenes.push({ scene, camera, renderer, pivots, groups, observer, visibilityObserver, lightingTimer });
+  activeScenes.push({ scene, camera, renderer, pivots, groups, observer, visibilityObserver, onHashChange, frame });
 }
 
-function mount(posts, force = false) {
+export function clearBookshelf() {
+  clearTimeout(remountTimer);
+  destroyActiveScenes();
+  mountedHost?.replaceChildren();
+  mounted = false;
+  mountedPosts = [];
+  mountedHost = null;
+  mountedOptions = {};
+  delete window.__modeledBookshelf;
+}
+
+export function mountBookshelf(posts, { host = document.querySelector('#all-posts-list'), privateLibrary = false } = {}, force = false) {
   if (!Array.isArray(posts) || !posts.length) return;
-  const list = document.querySelector('#all-posts-list');
+  const list = host;
   if (!list) return;
   const compactLayout = usesCompactCabinet(list);
   if (!force && mounted && mountedLayout === compactLayout && list.querySelector('.modeled-cabinet-section')) return;
   mounted = true;
   mountedLayout = compactLayout;
   mountedPosts = posts;
+  mountedHost = list;
+  mountedOptions = { host, privateLibrary };
   destroyActiveScenes();
+  const knownPinnedAliases = new Map([
+    ['machine-learning', ['机器学习']],
+    ['michael-diary', ['michael-diary-2026-05-08']]
+  ]);
+  const pinnedDefinitions = (!privateLibrary && Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [])
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return { slugs: [entry, ...(knownPinnedAliases.get(entry) || [])], title: '' };
+      }
+      const canonicalSlug = String(entry?.slug || '').trim();
+      return {
+        slugs: [
+          canonicalSlug,
+          ...(knownPinnedAliases.get(canonicalSlug) || []),
+          ...(Array.isArray(entry?.aliases) ? entry.aliases : [])
+        ]
+          .map((slug) => String(slug || '').trim())
+          .filter(Boolean),
+        title: String(entry?.title || '').trim()
+      };
+    });
+  const postMatchesPinnedDefinition = (post, definition) => {
+    const slug = String(post?.slug || '').trim();
+    const title = String(post?.title || '').trim();
+    return definition.slugs.includes(slug) || Boolean(definition.title && definition.title === title);
+  };
+  const pinnedPosts = pinnedDefinitions
+    .map((definition) => posts.find((post) => postMatchesPinnedDefinition(post, definition)))
+    .filter(Boolean);
+  const pinnedPostSet = new Set(pinnedPosts);
   const groups = posts.reduce((map, post) => {
+    if (pinnedPostSet.has(post)) return map;
     if (!map.has(post.category)) map.set(post.category, []);
     map.get(post.category).push(post);
     return map;
   }, new Map());
   list.replaceChildren();
   list.className = 'all-posts-list all-posts-list--modeled';
-  list.dataset.layoutVersion = 'modeled-cabinet-v18';
+  list.dataset.layoutVersion = 'modeled-cabinet-v23-no-legacy-flash';
   const cabinet = document.createElement('section');
   cabinet.className = 'modeled-cabinet-section';
   cabinet.setAttribute('aria-label', `${posts.length} posts in one cabinet`);
@@ -649,7 +684,20 @@ function mount(posts, force = false) {
   tooltip.setAttribute('aria-live', 'polite');
   cabinet.append(stage, labels);
   list.append(cabinet, tooltip);
-  const groupEntries = [...groups.entries()].slice(0, 6);
+  // The owner must be able to reach every volume, including extra categories.
+  // Split busy categories into additional bays instead of clipping their books.
+  const categoryEntries = privateLibrary
+    ? [...groups.entries()].flatMap(([category, entries]) => {
+        const capacity = compactLayout ? 5 : 8;
+        return Array.from({ length: Math.ceil(entries.length / capacity) }, (_, page) => [
+          page ? `${category} · ${page + 1}` : category,
+          entries.slice(page * capacity, (page + 1) * capacity)
+        ]);
+      })
+    : [...groups.entries()].slice(0, 6);
+  const groupEntries = pinnedPosts.length
+    ? [['Pinned', pinnedPosts], ...categoryEntries]
+    : categoryEntries;
   const columnCount = compactLayout ? 1 : 2;
   groupEntries.forEach(([category, categoryPosts], bayIndex) => {
     const label = document.createElement('div');
@@ -660,17 +708,27 @@ function mount(posts, force = false) {
     labels.appendChild(label);
   });
   createCabinet(stage, groupEntries, compactLayout);
-  window.__modeledBookshelf = { activeScenes, posts };
+  list.setAttribute('aria-busy', 'false');
+  document.body.classList.remove('bookshelf-model-loading');
+  document.body.classList.add('bookshelf-model-ready');
+  window.__modeledBookshelf = {
+    activeScenes,
+    posts,
+    groups: groupEntries.map(([category, categoryPosts]) => ({
+      category,
+      slugs: categoryPosts.map((post) => post.slug)
+    }))
+  };
 }
 
-window.addEventListener('michel:posts-rendered', (event) => mount(event.detail?.posts));
-if (Array.isArray(window.MICHEL_BOOKSHELF_POSTS)) mount(window.MICHEL_BOOKSHELF_POSTS);
+window.addEventListener('michel:posts-rendered', (event) => mountBookshelf(event.detail?.posts));
+if (Array.isArray(window.MICHEL_BOOKSHELF_POSTS)) mountBookshelf(window.MICHEL_BOOKSHELF_POSTS);
 
 window.addEventListener('resize', () => {
   window.clearTimeout(remountTimer);
   remountTimer = window.setTimeout(() => {
-    const list = document.querySelector('#all-posts-list');
+    const list = mountedHost;
     if (!mounted || !list || !mountedPosts.length) return;
-    if (usesCompactCabinet(list) !== mountedLayout) mount(mountedPosts, true);
+    if (usesCompactCabinet(list) !== mountedLayout) mountBookshelf(mountedPosts, mountedOptions, true);
   }, 160);
 }, { passive: true });

@@ -1,4 +1,5 @@
 (function () {
+  const stableFlowImageMode = true;
   const createLinks = document.querySelectorAll('[data-create-link]');
   if (createLinks.length) {
     const { protocol, hostname, port } = window.location;
@@ -10,9 +11,7 @@
   }
 
   const authoredPosts = Array.isArray(window.MICHEL_AUTHORED_POSTS) ? window.MICHEL_AUTHORED_POSTS : [];
-  const mountedPosts = (Array.isArray(window.MICHEL_POSTS) ? window.MICHEL_POSTS : []).concat(authoredPosts);
-  const allPosts = (Array.isArray(window.MICHEL_ALL_POSTS) ? window.MICHEL_ALL_POSTS : []).concat(authoredPosts);
-  const postsBySlug = new Map();
+  const hiddenPostIdentities = Array.isArray(window.MICHEL_HIDDEN_POSTS) ? window.MICHEL_HIDDEN_POSTS : [];
   function slugify(value) {
     return String(value || "")
       .trim()
@@ -22,6 +21,19 @@
       .replace(/^-+|-+$/g, "")
       .slice(0, 90);
   }
+  const hiddenPostSlugs = new Set(hiddenPostIdentities.map(slugify).filter(Boolean));
+  const isHiddenLegacyPost = (post) => {
+    return [post?.slug, post?.originalSlug, ...(Array.isArray(post?.aliases) ? post.aliases : [])]
+      .map(slugify)
+      .some((identity) => identity && hiddenPostSlugs.has(identity));
+  };
+  const mountedPosts = (Array.isArray(window.MICHEL_POSTS) ? window.MICHEL_POSTS : [])
+    .filter((post) => !isHiddenLegacyPost(post))
+    .concat(authoredPosts);
+  const allPosts = (Array.isArray(window.MICHEL_ALL_POSTS) ? window.MICHEL_ALL_POSTS : [])
+    .filter((post) => !isHiddenLegacyPost(post))
+    .concat(authoredPosts);
+  const postsBySlug = new Map();
   function rememberPostSlug(item, base = {}) {
     if (!item || !item.slug) return;
     const merged = { ...base, ...item };
@@ -47,6 +59,8 @@
   const title = document.getElementById("post-title");
   const excerpt = document.getElementById("post-excerpt");
   const content = document.getElementById("post-content");
+  const htmlReadingWidthHandle = document.querySelector("[data-html-reading-width-handle]");
+  const htmlReadingWidthOutput = document.querySelector("[data-html-reading-width-output]");
   const sourceLink = document.getElementById("source-link");
   const postFooter = document.getElementById("post-footer");
   const editButton = document.querySelector("[data-edit-post]");
@@ -58,17 +72,83 @@
   const editHeading = document.querySelector("[data-edit-heading]");
   const editCopy = document.querySelector("[data-edit-copy]");
   const editSubmit = document.querySelector("[data-edit-submit]");
-  let initialPinnedPosts = Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [];
-  try {
-    const localPins = JSON.parse(window.localStorage.getItem("michel:pinned-posts") || "null");
-    if (Array.isArray(localPins)) initialPinnedPosts = localPins;
-  } catch (_) {
-    // Use the generated pin file when storage is unavailable.
-  }
+  const initialPinnedPosts = Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [];
   const pinnedPostSet = new Set(initialPinnedPosts);
   let pinIsActive = Boolean(post && [post.slug, post.originalSlug, slug].some((value) => pinnedPostSet.has(String(value || "").trim())));
   let pendingAdminAction = "edit";
   let adminCsrfToken = "";
+  const htmlReadingWidthStorageKey = "michel-html-reading-width-v2";
+  const htmlReadingWidthMin = 640;
+  const htmlReadingWidthMax = 1200;
+  const htmlReadingWidthDefault = 860;
+  let htmlReadingWidth = htmlReadingWidthDefault;
+  let htmlReadingWidthDrag = null;
+
+  function clampHtmlReadingWidth(value) {
+    const numeric = Number(value);
+    return Math.round(Math.min(htmlReadingWidthMax, Math.max(htmlReadingWidthMin,
+      Number.isFinite(numeric) ? numeric : htmlReadingWidthDefault)));
+  }
+
+  function applyHtmlReadingWidth(value, { persist = false } = {}) {
+    htmlReadingWidth = clampHtmlReadingWidth(value);
+    document.body.style.setProperty("--reading-measure", `${htmlReadingWidth}px`);
+    document.body.style.setProperty("--reading-paper", `${htmlReadingWidth + 68}px`);
+    htmlReadingWidthHandle?.setAttribute("aria-valuenow", String(htmlReadingWidth));
+    if (htmlReadingWidthOutput) htmlReadingWidthOutput.value = `${htmlReadingWidth}px`;
+    if (persist) {
+      try {
+        window.localStorage.setItem(htmlReadingWidthStorageKey, String(htmlReadingWidth));
+      } catch (_) {
+        // Private browsing may reject storage; the current page still keeps the width.
+      }
+    }
+  }
+
+  function setupHtmlReadingWidthControl() {
+    if (post?.contentFormat !== "html" || !htmlReadingWidthHandle) return;
+    document.body.classList.add("is-html-post");
+    htmlReadingWidthHandle.hidden = false;
+    let storedWidth = htmlReadingWidthDefault;
+    try {
+      storedWidth = window.localStorage.getItem(htmlReadingWidthStorageKey) || htmlReadingWidthDefault;
+    } catch (_) {
+      storedWidth = htmlReadingWidthDefault;
+    }
+    applyHtmlReadingWidth(storedWidth);
+
+    htmlReadingWidthHandle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      htmlReadingWidthDrag = { pointerId: event.pointerId, startX: event.clientX, startWidth: htmlReadingWidth };
+      htmlReadingWidthHandle.classList.add("is-active");
+      htmlReadingWidthHandle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+    htmlReadingWidthHandle.addEventListener("pointermove", (event) => {
+      if (!htmlReadingWidthDrag || htmlReadingWidthDrag.pointerId !== event.pointerId) return;
+      const centeredScale = document.body.classList.contains("is-assistant-docked-left") ? 1 : 2;
+      applyHtmlReadingWidth(htmlReadingWidthDrag.startWidth + (event.clientX - htmlReadingWidthDrag.startX) * centeredScale);
+    });
+    const finishDrag = (event) => {
+      if (!htmlReadingWidthDrag || htmlReadingWidthDrag.pointerId !== event.pointerId) return;
+      htmlReadingWidthDrag = null;
+      htmlReadingWidthHandle.classList.remove("is-active");
+      applyHtmlReadingWidth(htmlReadingWidth, { persist: true });
+    };
+    htmlReadingWidthHandle.addEventListener("pointerup", finishDrag);
+    htmlReadingWidthHandle.addEventListener("pointercancel", finishDrag);
+    htmlReadingWidthHandle.addEventListener("keydown", (event) => {
+      const step = event.shiftKey ? 50 : 20;
+      const nextWidth = event.key === "ArrowLeft" ? htmlReadingWidth - step
+        : event.key === "ArrowRight" ? htmlReadingWidth + step
+          : event.key === "Home" ? htmlReadingWidthMin
+            : event.key === "End" ? htmlReadingWidthMax
+              : null;
+      if (nextWidth === null) return;
+      event.preventDefault();
+      applyHtmlReadingWidth(nextWidth, { persist: true });
+    });
+  }
 
   function makeErrorPage() {
     document.title = "Post not found · Michel Johnson";
@@ -89,6 +169,24 @@
     url.searchParams.set("edit", slug);
     url.searchParams.set("return", window.location.href);
     return url.href;
+  }
+
+  function postViewApiHref() {
+    const { protocol, hostname, port } = window.location;
+    const localHost = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+    const base = localHost && port !== "8787" ? `${protocol}//${hostname}:8787` : window.location.origin;
+    return `${base}/api/post-views/${encodeURIComponent(post?.slug || slug)}`;
+  }
+
+  function recordPostView() {
+    fetch(postViewApiHref(), {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: { "Accept": "application/json" }
+    }).catch(() => {
+      // Statistics must never interrupt article reading.
+    });
   }
 
   function usesExternalLocalAdmin() {
@@ -185,9 +283,7 @@
         body: JSON.stringify({ pinned: nextPinned })
       });
       pinIsActive = Boolean(result.pinned);
-      if (Array.isArray(result.pins)) {
-        window.localStorage.setItem("michel:pinned-posts", JSON.stringify(result.pins));
-      }
+      if (Array.isArray(result.pins)) window.MICHEL_PINNED_POSTS = result.pins.slice();
       renderPinState();
     } catch (error) {
       pinButton.classList.add("is-error");
@@ -248,7 +344,183 @@
     return plainTextSummary(withoutBlocks).slice(0, 180);
   }
 
+  function unescapedDollarCount(value) {
+    let count = 0;
+    String(value || "").replace(/(^|[^\\])\$/g, () => {
+      count += 1;
+      return "";
+    });
+    return count;
+  }
+
+  function siblingText(node, direction) {
+    const values = [];
+    let current = node[direction];
+    while (current) {
+      values.push(current.textContent || "");
+      current = current[direction];
+    }
+    if (direction === "previousSibling") values.reverse();
+    return values.join("");
+  }
+
+  function repairLegacySuperscript(parent) {
+    parent.querySelectorAll(":scope > sup").forEach((sup) => {
+      const next = sup.nextSibling;
+      if (!next || next.nodeType !== Node.TEXT_NODE) return;
+      const broken = /^(\{[^}]+\}\))([+\-])([A-Za-z][A-Za-z0-9_]*)$/.exec(sup.textContent || "");
+      const continuation = /^(\{[^}]+\})/.exec(next.textContent || "");
+      if (!broken || !continuation) return;
+      sup.replaceWith(document.createTextNode(
+        `^${broken[1]}${broken[2]}${broken[3]}^${continuation[1]}`
+      ));
+      next.textContent = (next.textContent || "").slice(continuation[1].length);
+    });
+  }
+
+  function repairLegacyMixedMath(root) {
+    root.querySelectorAll("span.katex").forEach((katex) => {
+      if (katex.parentElement?.closest("span.katex")) return;
+      const parent = katex.parentElement;
+      if (!parent || !parent.matches("p, li, td, th")) return;
+
+      const annotation = katex.querySelector('annotation[encoding="application/x-tex"]');
+      const source = (annotation?.textContent || "").trim();
+      const words = source.match(/[A-Za-z]+/g) || [];
+      const looksLikeProse = words.length >= 2
+        && !/[\\_^{}=<>]/.test(source)
+        && !/\b(?:frac|sum|theta|alpha|beta|vec|left|right)\b/i.test(source);
+      if (!looksLikeProse) return;
+
+      const before = siblingText(katex, "previousSibling");
+      const after = siblingText(katex, "nextSibling");
+      if (unescapedDollarCount(before) % 2 !== 1 || unescapedDollarCount(after) % 2 !== 1) return;
+
+      katex.replaceWith(document.createTextNode(`$${source} $`));
+      repairLegacySuperscript(parent);
+      parent.normalize();
+      parent.dataset.legacyMathRepaired = "true";
+    });
+  }
+
+  function normalizeLegacyMathSource(source) {
+    return normalizeMathTexShortcuts(String(source || ""))
+      .replace(/\u00a0/g, " ")
+      .replace(/([xy])\{\(i\)\}/g, "$1^{(i)}")
+      .replace(/tmp\\?_([wb])/g, "\\mathrm{tmp}_$1")
+      .replace(/…/g, "\\dots")
+      .replace(/\.\.\./g, "\\dots")
+      .replace(/^L-->loss$/i, "L \\longrightarrow \\text{loss}")
+      .replace(
+        /^L\((f_[\s\S]+?\^\{\(i\)\})\s*,\s*(y\^\{\(i\)\})\s*\)=/,
+        "L($1), $2) ="
+      )
+      .trim();
+  }
+
+  function rebuildLegacyKatex(root) {
+    if (!window.katex) return;
+    const formulas = Array.from(root.querySelectorAll("span.katex"))
+      .filter((node) => !node.parentElement?.closest("span.katex"));
+
+    formulas.forEach((formula) => {
+      const annotation = formula.querySelector('annotation[encoding="application/x-tex"]');
+      let source = (annotation?.textContent || "").trim();
+      if (!source) return;
+
+      let proseBefore = "";
+      let proseAfter = "";
+      source = source.replace(/^\s*,?\s*the\s*cost\s*function\s*/i, () => {
+        proseBefore = "the cost function ";
+        return "";
+      });
+      source = source.replace(/\s*,?\s*the\s*cost\s*function\s*$/i, () => {
+        proseAfter = ", the cost function";
+        return "";
+      });
+      source = normalizeLegacyMathSource(source);
+      if (!source) {
+        formula.replaceWith(document.createTextNode(`${proseBefore}${proseAfter}`));
+        return;
+      }
+
+      const displayWrapper = formula.parentElement?.classList.contains("katex-display")
+        ? formula.parentElement
+        : null;
+      const target = displayWrapper || formula;
+      const holder = document.createElement("span");
+      try {
+        window.katex.render(source, holder, {
+          displayMode: Boolean(displayWrapper),
+          throwOnError: false,
+          strict: "ignore"
+        });
+      } catch (_) {
+        return;
+      }
+      const replacement = holder.firstElementChild;
+      if (!replacement) return;
+      if (proseBefore) target.before(document.createTextNode(proseBefore));
+      target.replaceWith(replacement);
+      if (proseAfter) replacement.after(document.createTextNode(proseAfter));
+    });
+  }
+
+  function firstArticleTextNode(node) {
+    for (const child of node?.childNodes || []) {
+      if (child.nodeType === Node.TEXT_NODE) return child;
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const nested = firstArticleTextNode(child);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
+  function stripLegacyParagraphIndent(root) {
+    root.querySelectorAll("p").forEach((paragraph) => {
+      const first = firstArticleTextNode(paragraph);
+      if (!first) return;
+      first.textContent = (first.textContent || "").replace(/^[ \t\u00a0\u200b\u2060]+/, "");
+    });
+  }
+
   function normalizeArticle(root) {
+    const isolateFlowImage = (img) => {
+      if (!stableFlowImageMode) return;
+      const paragraph = img.parentElement;
+      if (paragraph?.tagName !== "P") return;
+      const nodes = Array.from(paragraph.childNodes);
+      const imageIndex = nodes.indexOf(img);
+      if (imageIndex < 0) return;
+      const before = nodes.slice(0, imageIndex);
+      const after = nodes.slice(imageIndex + 1);
+      const hasContent = (items) => items.some((node) => node.nodeType === Node.ELEMENT_NODE || String(node.textContent || "").trim());
+      if (!hasContent(before) && !hasContent(after)) return;
+      if (hasContent(before)) {
+        const beforeParagraph = document.createElement("p");
+        before.forEach((node) => beforeParagraph.appendChild(node));
+        paragraph.before(beforeParagraph);
+      } else {
+        before.forEach((node) => node.remove());
+      }
+      if (hasContent(after)) {
+        const afterParagraph = document.createElement("p");
+        after.forEach((node) => afterParagraph.appendChild(node));
+        paragraph.after(afterParagraph);
+      } else {
+        after.forEach((node) => node.remove());
+      }
+    };
+    stripLegacyParagraphIndent(root);
+    root.querySelectorAll("p, li, td, th").forEach((parent) => {
+      if (unescapedDollarCount(parent.textContent || "") >= 2) {
+        repairLegacySuperscript(parent);
+      }
+    });
+    repairLegacyMixedMath(root);
+    rebuildLegacyKatex(root);
+
     root.querySelectorAll("figure.highlight").forEach((figure) => {
       const codeCell = figure.querySelector("td.code");
       const codePre = codeCell ? codeCell.querySelector("pre") : figure.querySelector("pre");
@@ -316,7 +588,15 @@
       img.decoding = "async";
       if (!img.alt) img.alt = "Blog image";
       const style = img.getAttribute("style") || "";
-      const isWriterPlaced = img.hasAttribute("data-editor-width");
+      if (stableFlowImageMode && /position\s*:\s*absolute/i.test(style)) {
+        img.removeAttribute("style");
+        img.removeAttribute("data-editor-width");
+        img.removeAttribute("data-image-reserve");
+        img.removeAttribute("data-image-layer");
+        img.classList.remove("writer-image-reservation");
+      }
+      isolateFlowImage(img);
+      const isWriterPlaced = !stableFlowImageMode && img.hasAttribute("data-editor-width");
       const looksLegacyPositioned = /position\s*:\s*absolute/i.test(style) && !isWriterPlaced;
       img.removeAttribute("height");
       if (looksLegacyPositioned) {
@@ -327,6 +607,13 @@
         img.style.height = "auto";
         img.style.objectFit = "contain";
         img.style.maxWidth = "100%";
+      }
+      const reserve = stableFlowImageMode ? 0 : Math.max(0, Number.parseFloat(img.getAttribute("data-image-reserve") || "0") || 0);
+      const layer = Math.max(1, Math.min(99, Number.parseInt(img.getAttribute("data-image-layer") || "2", 10) || 2));
+      if (stableFlowImageMode) img.style.removeProperty("z-index");
+      else img.style.zIndex = String(layer);
+      if (!/position\s*:\s*absolute/i.test(style) && reserve > 0) {
+        img.style.marginBottom = `calc(1em + ${Math.round(reserve)}px)`;
       }
       img.addEventListener("error", () => {
         if (img.nextElementSibling?.classList.contains("article-image-fallback")) return;
@@ -385,11 +672,19 @@
         const maxLeft = Math.max(0, rootWidth - width - visualPadding);
         const left = Math.max(0, Math.min(maxLeft, rawLeft * scale));
         const top = Math.max(0, rawTop * scale);
+        const reserve = Math.max(0, Number.parseFloat(img.getAttribute("data-image-reserve") || "0") || 0) * scale;
         img.style.boxSizing = "border-box";
         img.style.width = `${Math.round(width)}px`;
         img.style.left = `${Math.round(left)}px`;
         img.style.top = `${Math.round(top)}px`;
         img.style.maxWidth = `calc(100% - ${visualPadding}px)`;
+        if (reserve > 0) {
+          const block = img.closest("p, li, blockquote, figure, div");
+          if (block && block !== root) {
+            block.style.minHeight = `${Math.ceil(reserve)}px`;
+            block.classList.add("writer-image-reservation");
+          }
+        }
       });
     };
     const update = () => {
@@ -456,39 +751,165 @@
       .replace(/\\\(([\s\S]+?)\\\)/g, (_match, tex) => `\\(${normalizeMathTexShortcuts(tex)}\\)`);
   }
 
+  function separateIntentionalParagraphs(markdown) {
+    let fenced = false;
+    const output = [];
+    String(markdown || "").split("\n").forEach((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      const intentionalParagraph = /^(?:(?:&#12288;|&#x3000;|\u3000)){2}/i.test(line);
+      if (!fenced && !fence && intentionalParagraph && output.length && output[output.length - 1].trim()) {
+        output.push("");
+      }
+      output.push(line);
+      if (fence) fenced = !fenced;
+    });
+    return output.join("\n");
+  }
+
+  function separateStandaloneHtmlBreaks(markdown) {
+    let fenced = false;
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    lines.forEach((line, index) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      output.push(line);
+      if (!fenced && !fence && /^\s*<br\s*\/?>\s*$/i.test(line)) {
+        const next = lines[index + 1] || "";
+        if (next.trim()) output.push("");
+      }
+      if (fence) fenced = !fenced;
+    });
+    return output.join("\n");
+  }
+
+  function separateLooseTextLines(markdown) {
+    let fenced = false;
+    let displayMath = false;
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    const isBlockLine = (line) => /^(?:\s*$|\s{4,}|\s*(?:#{1,6}\s|[-+*]\s|\d+[.)]\s|>|\|)|\s*<(?:\/?[a-z][^>]*|!--)|\s*(?:-{3,}|\*{3,}|_{3,})\s*$)/i.test(line);
+    lines.forEach((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      const mathFence = /^\s*\$\$\s*$/.test(line);
+      const previous = output[output.length - 1] || "";
+      const previousIsExplicitBreak = /(?: {2,}|\\)$/.test(previous);
+      if (
+        !fenced
+        && !displayMath
+        && !fence
+        && !mathFence
+        && line.trim()
+        && previous.trim()
+        && !previousIsExplicitBreak
+        && !isBlockLine(previous)
+        && !isBlockLine(line)
+      ) {
+        output.push("");
+      }
+      output.push(line);
+      if (fence) fenced = !fenced;
+      if (!fenced && mathFence) displayMath = !displayMath;
+    });
+    return output.join("\n");
+  }
+
+  function trimTrailingEmptyContent(value) {
+    let output = String(value || "").replace(/\r\n?/g, "\n");
+    let previous = "";
+    const trailingBreakLine = /(?:^|\n)[ \t]*(?:<br\s*\/?>|<(p|div)>[ \t]*(?:<br\s*\/?>)?[ \t]*<\/\1>)[ \t]*$/i;
+    while (output !== previous) {
+      previous = output;
+      output = output.replace(/[ \t]+$/gm, "").replace(/\n+$/, "");
+      output = output.replace(trailingBreakLine, "");
+    }
+    return output;
+  }
+
+  function removeTrailingEmptyRenderedNodes(root) {
+    const cleanTail = (container) => {
+      let node = container.lastChild;
+      while (node) {
+        if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) {
+          node.remove();
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          if (/^(ARTICLE|MAIN|SECTION|DIV)$/i.test(node.tagName)) cleanTail(node);
+          const visuallyEmpty = /^(BR|P|DIV|SECTION)$/i.test(node.tagName)
+            && !node.textContent.trim()
+            && !node.querySelector("img, video, iframe, canvas, svg, table, pre, code, hr");
+          if (visuallyEmpty) node.remove();
+          else break;
+        } else {
+          break;
+        }
+        node = container.lastChild;
+      }
+    };
+    cleanTail(root);
+  }
+
   function preserveVisualIndentation(markdown) {
     let fenced = false;
     return String(markdown || "").split("\n").map((line) => {
       if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
       if (fenced) return line;
-      let next = line;
-      if (/^ {1,3}\S/.test(next) && !/^ {1,3}(?:[-+*]\s|\d+[.)]\s|#{1,6}\s|>|\||<)/.test(next)) {
-        next = next.replace(/^ {1,3}/, (spaces) => `&#8288;${"&nbsp;".repeat(spaces.length)}`);
+      let next = line.replace(/^(?:&#(?:8288|x2060);)?(?:&nbsp;)+/i, "");
+      const leadingWhitespace = /^[ \t\u00a0\u200b\u2060]+(?=\S)/.exec(next)?.[0] || "";
+      const content = next.slice(leadingWhitespace.length);
+      const isMarkdownBlock = /^(?:[-+*]\s|\d+[.)]\s|#{1,6}\s|>|\||<)/.test(content);
+      if (leadingWhitespace && !isMarkdownBlock) {
+        next = content;
       }
-      return next.replace(/(?<=\S) {2,}(?=\S)/g, (spaces) => "&nbsp;".repeat(spaces.length));
+      return next.replace(/(?<=\S)[ \u00a0]{2,}(?=\S)/g, (spaces) => "&nbsp;".repeat(spaces.length));
     }).join("\n");
   }
 
   function setArticleHtml(html) {
     content.innerHTML = html;
+    removeTrailingEmptyRenderedNodes(content);
     normalizeArticle(content);
-    if (window.renderMathInElement) {
-      window.renderMathInElement(content, {
-        delimiters: mathDelimiters(),
-        throwOnError: false,
-        preProcess: normalizeMathTexShortcuts
-      });
-    }
+    const finishMath = () => {
+      repairLegacyMixedMath(content);
+      rebuildLegacyKatex(content);
+      if (window.renderMathInElement) {
+        window.renderMathInElement(content, {
+          delimiters: mathDelimiters(),
+          throwOnError: false,
+          preProcess: normalizeMathTexShortcuts
+        });
+      }
+      content.dataset.mathNormalized = "true";
+    };
+    finishMath();
+    window.requestAnimationFrame(finishMath);
+    window.setTimeout(finishMath, 250);
     if (window.hljs) {
       content.querySelectorAll("pre code").forEach((block) => window.hljs.highlightElement(block));
     }
-    fitAbsoluteImages(content);
+    if (!stableFlowImageMode) fitAbsoluteImages(content);
     window.MichelAnnotations?.enhance(content);
+    window.MichelFoldBlocks?.enhance(content);
   }
 
   function renderMarkdownPost(markdown) {
     if (!window.markdownit) {
-      setArticleHtml(`<pre><code>${escapeHtml(markdown)}</code></pre>`);
+      const fallbackHtml = String(markdown || "")
+        .replace(/\r\n?/g, "\n")
+        .trim()
+        .split(/\n{2,}/)
+        .map((block) => {
+          const lines = block.split("\n");
+          const heading = /^(#{1,6})\s+(.+)$/.exec(lines[0]);
+          if (heading && lines.length === 1) {
+            const level = heading[1].length;
+            return `<h${level}>${escapeHtml(heading[2])}</h${level}>`;
+          }
+          if (lines.every((line) => /^\s*[-*+]\s+/.test(line))) {
+            return `<ul>${lines.map((line) => `<li>${escapeHtml(line.replace(/^\s*[-*+]\s+/, ""))}</li>`).join("")}</ul>`;
+          }
+          return `<p>${lines.map((line) => escapeHtml(line)).join("<br>")}</p>`;
+        })
+        .join("");
+      setArticleHtml(fallbackHtml || '<p class="empty-note">This article could not be rendered.</p>');
       return;
     }
     const md = window.markdownit({
@@ -497,9 +918,13 @@
       typographer: true,
       breaks: true
     });
-    const rawHtml = md.render(normalizeMathShortcutsInMarkdown(preserveVisualIndentation(markdown)));
+    const normalizedMarkdown = normalizeMathShortcutsInMarkdown(
+      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(trimTrailingEmptyContent(markdown)))))
+    );
+    const rawHtml = md.render(window.MichelFoldBlocks ? window.MichelFoldBlocks.expand(normalizedMarkdown, md) : normalizedMarkdown);
     const cleanHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
-      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "aria-label"]
+      ADD_TAGS: ["details", "summary"],
+      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "aria-label", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer", "data-fold-block"]
     }) : rawHtml;
     setArticleHtml(cleanHtml);
   }
@@ -567,6 +992,9 @@
     makeErrorPage();
     return;
   }
+
+  recordPostView();
+  setupHtmlReadingWidthControl();
 
   bindCodeCopy(content);
 

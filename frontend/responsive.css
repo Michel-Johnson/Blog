@@ -13,12 +13,21 @@
   --layout-gutter: clamp(12px, 3.2vw, 44px);
   --surface-gutter: clamp(16px, 4.8vw, 72px);
   --layout-stage: 1420px;
-  --reading-measure: 700px;
+  --reading-paper: 910px;
+  --reading-measure: 760px;
+  --paper-inline-padding: 34px;
+  --assistant-dock-width: 33vw;
   --touch-target: 44px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+}
+
+body.is-html-post,
+body.is-html-editor {
+  --reading-paper: 928px;
+  --reading-measure: 860px;
 }
 
 /* Responsive display rules must never override application visibility state. */
@@ -90,9 +99,9 @@ svg {
   :root {
     --layout-gutter: clamp(10px, 3.6vw, 18px);
     --surface-gutter: clamp(16px, 5vw, 24px);
-    --article-font-size: clamp(15.75px, 2.5vw + 8px, 17px);
-    --article-line-height: 1.72;
-    --article-block-gap: .94em;
+    --article-font-size: clamp(15.75px, 4.35vw, 17px);
+    --article-line-height: 1.74;
+    --article-block-gap: .95em;
   }
 
   html,
@@ -104,7 +113,10 @@ svg {
 
   .site-shell,
   .post-shell {
+    box-sizing: border-box;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     padding-left: max(var(--layout-gutter), var(--safe-left)) !important;
     padding-right: max(var(--layout-gutter), var(--safe-right)) !important;
   }
@@ -153,9 +165,27 @@ svg {
 
   .post-page {
     display: block !important;
+    box-sizing: border-box;
     width: 100% !important;
+    min-width: 0 !important;
     max-width: 100% !important;
     margin-bottom: 0 !important;
+  }
+
+  .post-rail,
+  .post-hero,
+  .post-paper,
+  .post-content {
+    box-sizing: border-box;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .post-title,
+  .post-excerpt,
+  .post-content :is(p, h1, h2, h3, h4, h5, h6, li, blockquote) {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .post-rail {
@@ -163,7 +193,9 @@ svg {
   }
 
   .post-hero {
+    box-sizing: border-box;
     width: 100%;
+    max-width: 100%;
     margin: 0 0 clamp(16px, 4.5vw, 24px) !important;
     padding: clamp(20px, 5vw, 26px) clamp(16px, 4.6vw, 22px) clamp(22px, 5.5vw, 28px) !important;
     border-width: 2px !important;
@@ -173,10 +205,11 @@ svg {
   }
 
   .post-top-row {
+    position: relative;
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: max-content minmax(42px, 1fr) max-content;
     align-items: start;
-    gap: 9px;
+    gap: 7px;
   }
 
   .post-top-row .back-link,
@@ -194,6 +227,10 @@ svg {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .post-top-row .post-edit-button {
+    justify-self: end;
   }
 
   .post-kicker {
@@ -349,8 +386,9 @@ svg {
 /* Medium: tablets and small laptops keep a generous single reading column. */
 @media (min-width: 48rem) and (max-width: 71.99rem) {
   :root {
-    --layout-gutter: clamp(22px, 4vw, 38px);
-    --surface-gutter: clamp(34px, 6vw, 58px);
+    --layout-gutter: clamp(18px, 2.8vw, 28px);
+    --surface-gutter: clamp(22px, 3.8vw, 36px);
+    --article-font-size: 16.5px;
   }
 
   .post-shell {
@@ -360,7 +398,7 @@ svg {
 
   .post-nav,
   .post-page {
-    width: min(820px, 100%);
+    width: min(var(--reading-paper), 100%);
     margin-left: auto;
     margin-right: auto;
   }
@@ -385,7 +423,7 @@ svg {
   }
 
   .post-paper {
-    padding: 50px var(--surface-gutter) 58px !important;
+    padding: 44px var(--surface-gutter) 52px !important;
     transform: none !important;
   }
 
@@ -396,12 +434,14 @@ svg {
 
   .post-rail .reader-assistant-launcher {
     position: fixed !important;
-    right: max(18px, var(--safe-right)) !important;
-    bottom: max(18px, var(--safe-bottom)) !important;
+    inset: auto max(18px, var(--safe-right)) max(18px, var(--safe-bottom)) auto !important;
     width: auto !important;
+    height: auto !important;
+    max-height: 56px !important;
     min-height: 46px !important;
     padding: 10px 16px !important;
     font-size: 14px !important;
+    align-self: start !important;
   }
 
   .post-rail .reader-assistant {
@@ -441,8 +481,71 @@ svg {
   }
 }
 
-/* Wide: keep the whole composition together instead of stretching on ultrawide screens. */
-@media (min-width: 72rem) {
+/*
+ * Desktop reading stays centered on the viewport. On regular desktops the
+ * metadata card sits above the paper; only genuinely wide screens have
+ * enough spare room for an independent left rail without pushing the paper.
+ */
+@media (min-width: 72rem) and (max-width: 109.99rem) {
+  :root {
+    --article-font-size: 16.5px;
+  }
+
+  .post-nav,
+  .post-page {
+    width: min(var(--reading-paper), 100%);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .post-page {
+    display: block !important;
+  }
+
+  .post-rail {
+    display: block !important;
+  }
+
+  .post-hero {
+    margin-bottom: 30px !important;
+  }
+
+  .post-content {
+    width: min(var(--reading-measure), 100%) !important;
+    max-width: var(--reading-measure) !important;
+    margin-inline: auto;
+  }
+
+  .post-rail .reader-assistant-launcher {
+    position: fixed !important;
+    inset: auto max(24px, var(--safe-right)) max(24px, var(--safe-bottom)) auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 48px !important;
+    padding: 11px 18px !important;
+    font-size: 15px !important;
+  }
+
+  .post-rail .reader-assistant {
+    position: fixed !important;
+    left: var(--reader-assistant-left, auto) !important;
+    top: var(--reader-assistant-top, auto) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: min(var(--reader-assistant-width, 520px), calc(100vw - 48px)) !important;
+    height: min(var(--reader-assistant-height, 620px), calc(100dvh - 48px)) !important;
+    max-height: calc(100dvh - 48px) !important;
+    margin: 0 !important;
+  }
+}
+
+/* Wide: the paper owns the viewport center and the rail occupies spare space. */
+@media (min-width: 110rem) {
+  :root {
+    --layout-stage: 1760px;
+    --article-font-size: 16.5px;
+  }
+
   .site-nav,
   .post-nav,
   .post-page {
@@ -452,65 +555,47 @@ svg {
   }
 
   .post-page {
-    grid-template-columns: clamp(360px, 27vw, 430px) minmax(0, 820px) !important;
-    gap: clamp(40px, 4vw, 60px) !important;
-    justify-content: center;
+    position: relative;
+    display: block !important;
+  }
+
+  .post-paper {
+    box-sizing: border-box;
+    width: min(var(--reading-paper), 100%);
+    margin-inline: auto;
+  }
+
+  .post-rail {
+    position: absolute;
+    inset: 0 auto auto 0;
+    display: grid !important;
+    width: min(360px, calc((100% - var(--reading-paper)) / 2 - 40px));
+    min-width: 270px;
+    gap: 30px;
+  }
+
+  .post-rail .reader-assistant-launcher {
+    align-self: start !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .post-rail .reader-assistant {
-    width: min(var(--reader-assistant-width, 480px), calc(100vw - (2 * var(--layout-gutter)))) !important;
+    position: fixed !important;
+    left: var(--reader-assistant-left, auto) !important;
+    top: var(--reader-assistant-top, auto) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: var(--reader-assistant-width, 520px) !important;
     height: min(var(--reader-assistant-height, 340px), calc(100dvh - 64px)) !important;
     min-height: 340px !important;
     max-height: min(720px, calc(100dvh - 64px));
     max-width: none !important;
     justify-self: start;
-    margin-left: calc(100% - var(--reader-assistant-width, 480px) + 12px) !important;
+    margin-left: 0 !important;
     margin-right: 0 !important;
     transition: height 160ms ease;
-  }
-
-  .post-rail .reader-assistant-resize-handle {
-    display: grid;
-    place-items: center;
-    position: absolute;
-    left: 2px;
-    top: 50%;
-    z-index: 5;
-    width: 10px;
-    height: 50px;
-    border-radius: 0 7px 7px 0;
-    background: rgba(255, 230, 109, .74);
-    cursor: ew-resize;
-    touch-action: none;
-    transform: translateY(-50%);
-    transition: background-color 160ms ease, box-shadow 160ms ease;
-  }
-
-  .post-rail .reader-assistant-resize-handle span,
-  .post-rail .reader-assistant-resize-handle::before,
-  .post-rail .reader-assistant-resize-handle::after {
-    width: 2px;
-    height: 17px;
-    border-radius: 999px;
-    background: rgba(45, 45, 45, .58);
-    content: '';
-  }
-
-  .post-rail .reader-assistant-resize-handle::before,
-  .post-rail .reader-assistant-resize-handle::after {
-    position: absolute;
-    top: 16px;
-  }
-
-  .post-rail .reader-assistant-resize-handle::before { left: 2px; }
-  .post-rail .reader-assistant-resize-handle::after { right: 2px; }
-
-  .post-rail .reader-assistant-resize-handle:hover,
-  .post-rail .reader-assistant-resize-handle:focus-visible,
-  .post-rail .reader-assistant-resize-handle.is-active {
-    background: var(--yellow);
-    box-shadow: 0 0 0 2px rgba(45, 45, 45, .28);
-    outline: none;
   }
 
   .post-content {
@@ -523,11 +608,508 @@ svg {
   }
 }
 
+/*
+ * A tall desktop viewport is not a phone. Keep the assistant entry in the
+ * reading rail and open the conversation as a centered dialog so landscape
+ * drag coordinates cannot strand either control against a portrait edge.
+ */
+@media (min-width: 48rem) and (orientation: portrait) {
+  .post-rail .reader-assistant-launcher {
+    position: fixed !important;
+    inset: auto max(20px, var(--safe-right)) max(20px, var(--safe-bottom)) auto !important;
+    display: block;
+    width: auto !important;
+    height: auto !important;
+    max-width: min(132px, calc(100vw - 40px)) !important;
+    min-height: 46px !important;
+    max-height: 52px !important;
+    margin: 0 !important;
+    padding: 10px 16px !important;
+    text-align: center;
+    font-size: 14px !important;
+    white-space: nowrap;
+  }
+
+  .post-rail .reader-assistant {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: min(640px, calc(100vw - 48px)) !important;
+    height: min(720px, calc(100dvh - 48px)) !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 48px) !important;
+    margin: 0 !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .post-rail .reader-assistant-resize-handle {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .reader-assistant-resize-handle {
+    display: none !important;
+  }
+}
+
 @supports not (overflow: clip) {
   @media (max-width: 47.99rem) {
     html,
     body {
       overflow-x: hidden;
     }
+  }
+}
+
+/* Jerry assistant pet keeps its native silhouette across every layout mode. */
+.reader-assistant-launcher.reader-assistant-launcher--pet,
+.post-rail .reader-assistant-launcher.reader-assistant-launcher--pet {
+  width: 104px !important;
+  height: 112px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
+@media (max-width: 47.99rem), (pointer: coarse) {
+  .reader-assistant-launcher.reader-assistant-launcher--pet,
+  .post-rail .reader-assistant-launcher.reader-assistant-launcher--pet {
+    width: 78px !important;
+    height: 84px !important;
+  }
+}
+
+/* HTML articles can use a reader-selected measure without changing Markdown posts. */
+.html-reading-width-handle {
+  display: none;
+}
+
+.post-top-actions {
+  grid-column: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-self: end;
+  gap: 10px;
+}
+
+@media (min-width: 72rem) and (pointer: fine) {
+  body.is-html-post .html-reading-width-handle {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 11px 7px;
+    border: 2px solid var(--ink);
+    border-radius: var(--wobble-small);
+    outline: 0;
+    background: var(--paper);
+    box-shadow: 3px 3px 0 var(--ink);
+    color: var(--ink);
+    cursor: ew-resize;
+    touch-action: none;
+    user-select: none;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  body.is-html-post .html-reading-width-handle > span {
+    color: #947f43;
+    font: 900 16px/1 system-ui, sans-serif;
+  }
+
+  body.is-html-post .html-reading-width-handle output {
+    width: max-content;
+    color: var(--ink);
+    font: 700 13px/1.2 "Comic Neue", system-ui, sans-serif;
+    pointer-events: none;
+  }
+
+  body.is-html-post .html-reading-width-handle:hover,
+  body.is-html-post .html-reading-width-handle:focus-visible,
+  body.is-html-post .html-reading-width-handle.is-active {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+}
+
+@media (min-width: 110rem) {
+  body.is-html-post .post-nav,
+  body.is-html-post .post-page {
+    width: min(var(--reading-paper), 100%);
+  }
+
+  body.is-html-post .post-page {
+    display: block !important;
+  }
+
+  body.is-html-post .post-rail {
+    position: static;
+    display: block !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.is-html-post .post-paper {
+    width: 100%;
+  }
+}
+
+@media (max-width: 71.99rem), (pointer: coarse) {
+  body.is-html-post .html-reading-width-handle {
+    display: none !important;
+  }
+
+  body.is-html-post .post-top-row {
+    grid-template-rows: auto auto;
+  }
+
+  body.is-html-post .post-top-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    margin: 0 0 18px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  body.is-html-post .post-top-actions .post-edit-button {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+  }
+}
+
+/* HTML sources may ship their own oversized typography. Keep their custom
+ * layout and colors, but normalize the reading scale to the site reader. */
+body.is-html-post .post-hero h1,
+body.is-html-post .post-hero h1.is-cjk-title {
+  width: min(var(--reading-measure), 100%);
+  max-width: var(--reading-measure);
+  margin-inline: auto;
+  font-size: var(--article-title-size) !important;
+  line-height: var(--article-title-line-height) !important;
+  letter-spacing: 0 !important;
+}
+
+body.is-html-post .post-excerpt {
+  font-size: 17px !important;
+}
+
+body.is-html-post .post-content > :is(article, main, section, div) {
+  font-family: var(--article-font) !important;
+  font-size: var(--article-font-size) !important;
+  line-height: var(--article-line-height) !important;
+  letter-spacing: var(--article-letter-spacing) !important;
+}
+
+body.is-html-post .post-content :is(.lead, .figure-intro) {
+  font-size: 1.05em !important;
+}
+
+body.is-html-post .post-content figcaption {
+  font-size: .87em !important;
+}
+
+body.is-html-post .post-content h1 { font-size: 33.68px !important; }
+body.is-html-post .post-content h2 { font-size: 25.26px !important; }
+body.is-html-post .post-content h3 { font-size: 19.65px !important; }
+body.is-html-post .post-content h4 { font-size: 16.84px !important; }
+
+@media (max-width: 47.99rem), (pointer: coarse) {
+  body.is-html-post .post-content > :is(article, main, section, div) {
+    font-size: var(--article-font-size) !important;
+  }
+
+  body.is-html-post .post-content h1 { font-size: 33.68px !important; }
+  body.is-html-post .post-content h2 { font-size: 25.26px !important; }
+  body.is-html-post .post-content h3 { font-size: 19.65px !important; }
+}
+
+/* Borderless article reader: keep content structure, remove decorative cards. */
+.post-body .post-hero {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.post-body .post-hero::after {
+  content: none !important;
+  display: none !important;
+}
+
+.post-body .post-paper {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+.post-body .post-paper::before {
+  content: none !important;
+  display: none !important;
+}
+/* Keep the Ask AI shell visually open; internal cards retain their own borders. */
+html body .reader-assistant {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+html body .reader-assistant::before,
+html body .reader-assistant::after {
+  box-shadow: none !important;
+}
+/* Ask AI outer chrome reset v48. Internal cards and composer keep their own borders. */
+html body .reader-assistant {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+html body .reader-assistant::before,
+html body .reader-assistant::after {
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+/* Borderless Ask AI shell: keep the header, messages, and composer styling. */
+html body .reader-assistant {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+html body .reader-assistant::before,
+html body .reader-assistant::after {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Restore the original ruled-paper reader surface. */
+html body.post-body {
+  background-color: #fefaf2 !important;
+}
+
+html body.post-body::before {
+  background-image:
+    linear-gradient(rgba(45, 45, 45, .055) 1px, transparent 1px),
+    radial-gradient(rgba(45, 45, 45, .11) .7px, transparent 1px) !important;
+  background-size: 100% 40px, 22px 22px !important;
+  opacity: .32 !important;
+}
+
+html body.post-body .post-paper,
+html body.post-body .post-paper::before,
+html body.post-body .post-paper::after {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Keep AI answers and article media visually open on the paper surface. */
+html body.post-body .assistant-message {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body.post-body .assistant-message:not(.is-user) {
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+html body.post-body .post-content img,
+html body.post-body .post-content figure {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* The reader no longer exposes the decorative pin control. */
+html body.post-body .post-pin-button {
+  display: none !important;
+}
+
+html body.post-body .post-top-row .post-edit-button {
+  grid-column: 3;
+}
+
+/* Docked Ask AI uses a persisted, hover-revealed split control. */
+@media (min-width: 67.5rem) and (orientation: landscape) and (pointer: fine) {
+  body.is-assistant-docked-left {
+    padding-left: var(--assistant-dock-width, 33.333333vw) !important;
+  }
+
+  body.is-assistant-docked-left .post-shell {
+    padding-left: 22px !important;
+    padding-right: 24px !important;
+  }
+
+  body.is-assistant-docked-left .post-page {
+    width: min(var(--reading-paper), calc(100% - 24px)) !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+
+  body.is-assistant-docked-left .post-paper,
+  body.is-assistant-docked-left .post-content {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+
+  body.is-assistant-docked-left.is-resizing-assistant {
+    transition: none !important;
+    user-select: none;
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left {
+    width: var(--assistant-dock-width, 33.333333vw) !important;
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left form[data-assistant-form] {
+    margin-bottom: 8px !important;
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle {
+    display: none !important;
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle.is-e {
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: block !important;
+    width: 18px;
+    opacity: 0;
+    cursor: ew-resize;
+    transition: opacity 140ms ease;
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle.is-e::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 1px;
+    width: 4px;
+    height: 54px;
+    border-radius: 999px;
+    background: rgba(45, 45, 45, .5);
+    transform: translateY(-50%);
+  }
+
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle.is-e:hover,
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle.is-e:focus-visible,
+  body.is-assistant-docked-left .reader-assistant.is-docked-left .reader-assistant-resize-handle.is-e.is-active {
+    opacity: 1;
+  }
+
+  body.is-assistant-docked-left .post-content {
+    width: min(var(--reading-measure), calc(100% - 48px)) !important;
+    max-width: var(--reading-measure) !important;
+  }
+}
+
+/* Confirmed desktop reading parameters from the local tuner. */
+@media (min-width: 48rem) {
+  html body.post-body .post-hero {
+    margin-bottom: 16px !important;
+    padding-bottom: 18px !important;
+  }
+
+  html body.post-body .post-paper {
+    padding-top: 28px !important;
+    padding-inline: var(--paper-inline-padding) !important;
+  }
+}
+
+/* Portrait Ask AI becomes a stable bottom sheet instead of a floating panel. */
+@media (orientation: portrait) {
+  .reader-assistant,
+  .post-rail .reader-assistant {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: min(58dvh, 620px) !important;
+    max-height: calc(100dvh - 96px) !important;
+    min-width: 0 !important;
+    min-height: min(360px, 58dvh) !important;
+    margin: 0 !important;
+    transform: none !important;
+    border-width: 1.5px 0 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    box-shadow: 0 -3px 0 var(--ink) !important;
+  }
+
+  .reader-assistant .reader-assistant-resize-handle {
+    display: none !important;
+  }
+
+  .reader-assistant header {
+    cursor: default;
+  }
+}
+
+/* Jerry is a viewport pet, independent from the article rail and Ask AI dock. */
+html body .reader-assistant-launcher.reader-assistant-launcher--pet,
+html body .post-rail .reader-assistant-launcher.reader-assistant-launcher--pet,
+html body.is-assistant-docked-left .post-rail > .reader-assistant-launcher.reader-assistant-launcher--pet {
+  position: fixed !important;
+  inset: auto max(8px, var(--safe-right)) max(18px, var(--safe-bottom)) auto !important;
+  width: 120px !important;
+  height: 130px !important;
+  margin: 0 !important;
+  align-self: auto !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  transform: none !important;
+}
+
+@media (max-width: 47.99rem), (pointer: coarse) {
+  html body .reader-assistant-launcher.reader-assistant-launcher--pet,
+  html body .post-rail .reader-assistant-launcher.reader-assistant-launcher--pet,
+  html body.is-assistant-docked-left .post-rail > .reader-assistant-launcher.reader-assistant-launcher--pet {
+    width: 68px !important;
+    height: 74px !important;
+    right: max(4px, var(--safe-right)) !important;
+    bottom: max(10px, var(--safe-bottom)) !important;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .post-content .code-block {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .post-content .code-block pre,
+  .post-content > pre {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 12px;
+    padding-left: 12px;
+    font-size: 12px;
+    overscroll-behavior-inline: contain;
   }
 }

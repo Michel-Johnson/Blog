@@ -1,0 +1,15 @@
+/* Keep the Ask AI panel structure, but remove its heavy outer chrome. */
+html body .reader-assistant {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+html body .reader-assistant::before,
+html body .reader-assistant::after {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}

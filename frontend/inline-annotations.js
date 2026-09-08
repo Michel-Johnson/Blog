@@ -66,19 +66,34 @@
   }
 
   function positionPopover(trigger) {
-    if (window.matchMedia("(max-width: 720px), (hover: none)").matches) return;
+    const popover = trigger.querySelector(".article-annotation-popover");
+    if (!popover) return;
+    if (window.matchMedia("(max-width: 720px), (hover: none)").matches) {
+      popover.style.removeProperty("left");
+      popover.style.removeProperty("top");
+      return;
+    }
     window.requestAnimationFrame(() => {
-      const popover = trigger.querySelector(".article-annotation-popover");
-      if (!popover) return;
-      popover.style.setProperty("--annotation-shift", "0px");
-      const rect = popover.getBoundingClientRect();
+      if (!popover.isConnected) return;
+      popover.style.left = "0px";
+      popover.style.top = "0px";
+      const triggerRect = trigger.getBoundingClientRect();
+      const popoverRect = popover.getBoundingClientRect();
       const inset = 14;
-      const shift = rect.left < inset
-        ? inset - rect.left
-        : rect.right > window.innerWidth - inset
-          ? window.innerWidth - inset - rect.right
-          : 0;
-      popover.style.setProperty("--annotation-shift", `${Math.round(shift)}px`);
+      const gap = 12;
+      const maxLeft = Math.max(inset, window.innerWidth - inset - popoverRect.width);
+      const left = Math.min(
+        maxLeft,
+        Math.max(inset, triggerRect.left + triggerRect.width / 2 - popoverRect.width / 2),
+      );
+      let top = triggerRect.top - popoverRect.height - gap;
+      if (top < inset) top = triggerRect.bottom + gap;
+      top = Math.min(
+        Math.max(inset, top),
+        Math.max(inset, window.innerHeight - inset - popoverRect.height),
+      );
+      popover.style.left = `${Math.round(left)}px`;
+      popover.style.top = `${Math.round(top)}px`;
     });
   }
 
@@ -92,27 +107,48 @@
       const trigger = document.createElement("span");
       trigger.className = "article-annotation";
       trigger.tabIndex = 0;
-      trigger.setAttribute("role", "button");
+      trigger.setAttribute("aria-haspopup", "true");
       trigger.setAttribute("aria-expanded", "false");
       trigger.dataset.annotationHref = link.getAttribute("href") || "";
+      trigger.dataset.annotationOrigin = payload.origin === "glm" ? "glm" : "author";
       trigger.append(...Array.from(link.childNodes));
       trigger.appendChild(makePopover(payload));
-      trigger.addEventListener("pointerenter", () => positionPopover(trigger));
-      trigger.addEventListener("focus", () => positionPopover(trigger));
-      trigger.addEventListener("click", (event) => {
-        if (event.target.closest("a")) return;
-        event.stopPropagation();
+      let pointerStart = null;
+      let dragged = false;
+      const togglePinned = () => {
         const open = !trigger.classList.contains("is-open");
         closeAll(document);
         trigger.classList.toggle("is-open", open);
         trigger.setAttribute("aria-expanded", String(open));
         document.body.classList.toggle("has-open-article-annotation", open);
         if (open) positionPopover(trigger);
+      };
+      trigger.addEventListener("pointerdown", (event) => {
+        pointerStart = { x: event.clientX, y: event.clientY };
+        dragged = false;
+      });
+      trigger.addEventListener("pointermove", (event) => {
+        if (!pointerStart) return;
+        if (Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 5) dragged = true;
+      });
+      trigger.addEventListener("pointerup", () => { pointerStart = null; });
+      trigger.addEventListener("pointerenter", () => positionPopover(trigger));
+      trigger.addEventListener("focus", () => positionPopover(trigger));
+      trigger.addEventListener("click", (event) => {
+        if (event.target.closest("a")) return;
+        const selection = window.getSelection();
+        if (dragged || (selection && !selection.isCollapsed)) {
+          dragged = false;
+          return;
+        }
+        event.stopPropagation();
+        togglePinned();
       });
       trigger.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        trigger.click();
+        event.stopPropagation();
+        togglePinned();
       });
       link.dataset.annotationEnhanced = "true";
       link.replaceWith(trigger);
@@ -124,10 +160,20 @@
     }
   }
 
+  function repositionVisiblePopovers() {
+    document.querySelectorAll(".article-annotation").forEach((trigger) => {
+      if (trigger.classList.contains("is-open") || trigger.matches(":hover") || trigger.contains(document.activeElement)) {
+        positionPopover(trigger);
+      }
+    });
+  }
+
   document.addEventListener("click", () => closeAll(document));
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeAll(document);
   });
+  window.addEventListener("resize", repositionVisiblePopovers, { passive: true });
+  window.addEventListener("scroll", repositionVisiblePopovers, { passive: true, capture: true });
 
   window.MichelAnnotations = { PREFIX, encode, decode, enhance, closeAll };
 })();

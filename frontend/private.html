@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <title>Private Library · Michel Johnson</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./private.css?v=shared-shelf-20260831">
+  </head>
+  <body class="private-body">
+    <main class="private-shell">
+      <div class="paper-noise" aria-hidden="true"></div>
+
+      <nav class="site-nav private-nav" aria-label="Private navigation">
+        <a class="brand-lockup" href="./?home=1" aria-label="Michel Johnson home">
+          <span class="brand-dot"></span>
+          <span>Michel Johnson</span>
+        </a>
+        <div class="nav-links">
+          <a href="./?home=1#blog">Blog</a>
+          <button type="button" class="private-logout" data-logout hidden>Lock</button>
+        </div>
+      </nav>
+
+      <section class="private-login" data-login-panel aria-labelledby="private-login-title">
+        <form class="private-login-form" data-login-form>
+          <p class="private-eyebrow">Owner access</p>
+          <h1 id="private-login-title">Unlock private library</h1>
+          <p>Private writing stays behind the server session.</p>
+          <label>
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" required autofocus>
+          </label>
+          <button type="submit">Unlock</button>
+          <p class="private-error" data-login-error role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section class="private-workspace" data-private-workspace hidden aria-labelledby="private-title">
+        <header class="private-heading">
+          <div>
+            <p class="private-eyebrow">Private</p>
+            <h1 id="private-title">Michel's library</h1>
+          </div>
+          <a class="private-new" href="./admin.html?new=1">New paper</a>
+        </header>
+
+        <section class="private-section private-books-section" aria-labelledby="private-books-title">
+          <div class="private-section-heading">
+            <div>
+              <p class="private-section-index">01</p>
+              <h2 id="private-books-title">Published writing</h2>
+            </div>
+            <p data-published-count>0 volumes</p>
+          </div>
+          <p class="private-empty" data-published-empty hidden>No published volumes yet.</p>
+          <p data-books-loading hidden role="status">Loading library…</p>
+          <div data-private-bookcase aria-label="Published writing bookshelf"></div>
+          <nav class="private-book-links" data-book-links aria-label="Edit published writing"></nav>
+        </section>
+
+        <section class="private-section private-drafts-section" aria-labelledby="private-drafts-title">
+          <div class="private-section-heading">
+            <div>
+              <p class="private-section-index">02</p>
+              <h2 id="private-drafts-title">Draft papers</h2>
+            </div>
+            <p data-draft-count>0 sheets</p>
+          </div>
+          <div class="private-paper-grid" data-private-drafts>
+            <div class="private-empty" data-drafts-empty hidden>No saved drafts yet.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./private.js?v=shared-shelf-20260831" defer></script>
+  </body>
+</html>
