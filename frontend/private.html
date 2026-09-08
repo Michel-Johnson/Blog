@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow, noarchive">
     <title>Private Library · Michel Johnson</title>
     <link rel="stylesheet" href="./styles.css">
-    <link rel="stylesheet" href="./private.css">
+    <link rel="stylesheet" href="./private.css?v=shared-shelf-20260831">
   </head>
   <body class="private-body">
     <main class="private-shell">
@@ -54,9 +54,10 @@
             </div>
             <p data-published-count>0 volumes</p>
           </div>
-          <div class="private-bookcase" data-private-bookcase>
-            <div class="private-empty" data-published-empty hidden>No private volumes yet.</div>
-          </div>
+          <p class="private-empty" data-published-empty hidden>No published volumes yet.</p>
+          <p data-books-loading hidden role="status">Loading library…</p>
+          <div data-private-bookcase aria-label="Published writing bookshelf"></div>
+          <nav class="private-book-links" data-book-links aria-label="Edit published writing"></nav>
         </section>
 
         <section class="private-section private-drafts-section" aria-labelledby="private-drafts-title">
@@ -74,6 +75,6 @@
       </section>
     </main>
 
-    <script src="./private.js" defer></script>
+    <script src="./private.js?v=shared-shelf-20260831" defer></script>
   </body>
 </html>

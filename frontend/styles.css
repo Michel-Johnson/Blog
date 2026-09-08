@@ -3194,6 +3194,53 @@ body.preview-home .intro-stage { display: none; }
   position: relative;
 }
 
+.fold-block {
+  margin: 1.05em 0;
+  border: 1px solid rgba(154, 132, 81, .38);
+  border-radius: 10px;
+  background: rgba(255, 250, 236, .78);
+  overflow: clip;
+}
+
+.fold-block-editor-shell {
+  width: 100%;
+}
+
+.fold-block > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 54px;
+  padding: 0 18px;
+  cursor: pointer;
+  color: var(--ink);
+  background: linear-gradient(90deg, rgba(255, 229, 111, .62), rgba(255, 250, 236, .22));
+  font-family: "Michel Sketch", "Comic Sans MS", "Marker Felt", "Trebuchet MS", cursive;
+  font-size: .9em;
+  font-weight: 700;
+  line-height: 1.35;
+  list-style: none;
+}
+
+.fold-block > summary::-webkit-details-marker { display: none; }
+
+.fold-block > summary small {
+  color: #746b5f;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .05em;
+}
+
+.fold-block__body {
+  padding: 2px 18px 16px;
+  border-top: 1px dashed rgba(154, 132, 81, .34);
+}
+
+.fold-block__body > :first-child { margin-top: 14px; }
+.fold-block__body > :last-child { margin-bottom: 0; }
+
 .post-content .code-block pre {
   margin: 0;
   padding-top: 42px;

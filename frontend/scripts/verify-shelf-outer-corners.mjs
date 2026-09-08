@@ -16,7 +16,7 @@ for (const target of [
   await page.goto(`${baseUrl}/index.html?home=1&theme=sketch&b=flush-frame-corners-v34-20260804#all-posts`, {
     waitUntil: "networkidle",
   });
-  await page.locator("#all-posts-list[data-layout-version='modeled-cabinet-v22-flush-frame-corners']").waitFor();
+  await page.locator("#all-posts-list[data-layout-version='modeled-cabinet-v23-no-legacy-flash']").waitFor();
   await page.locator("#all-posts-list canvas").first().waitFor({ state: "visible" });
   await page.locator("#all-posts-list").screenshot({ path: `${outputPrefix}-${target.name}.png` });
   await page.close();

@@ -53,13 +53,16 @@ try {
   await page.locator('input[name="password"]').fill("test-only");
   await page.locator('[data-login-form] button[type="submit"]').click();
   await page.locator("[data-private-workspace]").waitFor({ state: "visible" });
-  if (await page.locator(".private-book").count() !== 2) throw new Error("Published books were not rendered");
+  await page.locator('[data-private-bookcase] canvas').waitFor({ state: 'visible' });
+  if (await page.locator('[data-book-links] a').count() !== 2) throw new Error('Published editor links were not rendered');
+  if (await page.locator('.private-book, .private-shelf-row').count()) throw new Error('Legacy bookshelf remains');
+  if (await page.locator('.modeled-cabinet-stage').getAttribute('data-latin-spine-complete') !== 'true') throw new Error('Latin spine title was clipped');
   if (await page.locator(".private-paper").count() !== 1) throw new Error("Draft paper was not rendered");
   await page.screenshot({ path: "/tmp/private-library-desktop.png", fullPage: true });
 
   await page.locator("[data-logout]").click();
   await page.locator("[data-login-panel]").waitFor({ state: "visible" });
-  const remainingPrivateNodes = await page.locator(".private-book, .private-paper").evaluateAll((nodes) =>
+  const remainingPrivateNodes = await page.locator("[data-private-bookcase] canvas, [data-book-links] a, .private-paper").evaluateAll((nodes) =>
     nodes.map((node) => ({ className: node.className, title: node.textContent.trim() }))
   );
   if (remainingPrivateNodes.length) {
@@ -70,6 +73,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "networkidle" });
   await page.locator("[data-private-workspace]").waitFor({ state: "visible" });
+  await page.locator('.modeled-cabinet-stage[data-cabinet-layout="compact-stack"]').waitFor({ state: 'visible' });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (overflow > 1) throw new Error(`Mobile page overflows horizontally by ${overflow}px`);
   await page.screenshot({ path: "/tmp/private-library-mobile.png", fullPage: true });

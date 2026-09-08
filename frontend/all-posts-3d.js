@@ -7,6 +7,8 @@ let mounted = false;
 let mountedLayout = null;
 let mountedPosts = [];
 let remountTimer = 0;
+let mountedHost = null;
+let mountedOptions = {};
 
 const FIXED_LIGHTING = Object.freeze({
   period: 'fixed',
@@ -21,7 +23,9 @@ const FIXED_LIGHTING = Object.freeze({
 });
 
 function destroyActiveScenes() {
-  activeScenes.forEach(({ scene, renderer, observer, visibilityObserver }) => {
+  activeScenes.forEach(({ scene, renderer, observer, visibilityObserver, onHashChange, frame }) => {
+    cancelAnimationFrame(frame.id);
+    window.removeEventListener('hashchange', onHashChange);
     observer?.disconnect();
     visibilityObserver?.disconnect();
     scene.traverse((node) => {
@@ -34,6 +38,7 @@ function destroyActiveScenes() {
       });
     });
     renderer.dispose();
+    renderer.forceContextLoss();
   });
   activeScenes.length = 0;
 }
@@ -511,7 +516,12 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       return;
     }
     const post = hovered.userData.post;
-    tooltip.innerHTML = `<strong>${post.title}</strong><span>${post.excerpt}</span><small>${post.category}${post.date ? ` · ${post.date}` : ''}</small>`;
+    tooltip.replaceChildren();
+    for (const [tag, value] of [['strong', post.title], ['span', post.excerpt], ['small', `${post.category}${post.date ? ` · ${post.date}` : ''}`]]) {
+      const text = document.createElement(tag);
+      text.textContent = value || '';
+      tooltip.append(text);
+    }
     const width = Math.min(420, window.innerWidth - 32);
     tooltip.style.left = `${Math.max(16, Math.min(event.clientX + 14, window.innerWidth - width - 16))}px`;
     tooltip.style.top = `${Math.max(16, Math.min(event.clientY + 14, window.innerHeight - 170))}px`;
@@ -519,7 +529,7 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
   };
   renderer.domElement.addEventListener('pointermove', pick);
   renderer.domElement.addEventListener('pointerleave', () => { hovered = null; tooltip?.classList.remove('is-visible'); });
-  renderer.domElement.addEventListener('pointerdown', (event) => { pointerDown = { x: event.clientX, y: event.clientY }; });
+  renderer.domElement.addEventListener('pointerdown', (event) => { pick(event); pointerDown = { x: event.clientX, y: event.clientY }; });
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!pointerDown || !hovered || Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 5) return;
     window.location.href = hovered.userData.post.href;
@@ -577,8 +587,10 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       attributeFilter: ['hidden', 'class', 'style']
     });
   }
-  window.addEventListener('hashchange', () => window.requestAnimationFrame(resize), { passive: true });
+  const onHashChange = () => window.requestAnimationFrame(resize);
+  window.addEventListener('hashchange', onHashChange, { passive: true });
   resize();
+  const frame = { id: 0 };
   const render = () => {
     if (!renderer.domElement.isConnected) return;
     pivots.forEach((pivot) => {
@@ -591,27 +603,40 @@ function createCabinet(host, groups, compactLayout = usesCompactCabinet(host)) {
       pivot.position.z = pivot.userData.restZ + pull * 0.3;
     });
     renderer.render(scene, camera);
-    requestAnimationFrame(render);
+    frame.id = requestAnimationFrame(render);
   };
   render();
-  activeScenes.push({ scene, camera, renderer, pivots, groups, observer, visibilityObserver });
+  activeScenes.push({ scene, camera, renderer, pivots, groups, observer, visibilityObserver, onHashChange, frame });
 }
 
-function mount(posts, force = false) {
+export function clearBookshelf() {
+  clearTimeout(remountTimer);
+  destroyActiveScenes();
+  mountedHost?.replaceChildren();
+  mounted = false;
+  mountedPosts = [];
+  mountedHost = null;
+  mountedOptions = {};
+  delete window.__modeledBookshelf;
+}
+
+export function mountBookshelf(posts, { host = document.querySelector('#all-posts-list'), privateLibrary = false } = {}, force = false) {
   if (!Array.isArray(posts) || !posts.length) return;
-  const list = document.querySelector('#all-posts-list');
+  const list = host;
   if (!list) return;
   const compactLayout = usesCompactCabinet(list);
   if (!force && mounted && mountedLayout === compactLayout && list.querySelector('.modeled-cabinet-section')) return;
   mounted = true;
   mountedLayout = compactLayout;
   mountedPosts = posts;
+  mountedHost = list;
+  mountedOptions = { host, privateLibrary };
   destroyActiveScenes();
   const knownPinnedAliases = new Map([
     ['machine-learning', ['机器学习']],
     ['michael-diary', ['michael-diary-2026-05-08']]
   ]);
-  const pinnedDefinitions = (Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [])
+  const pinnedDefinitions = (!privateLibrary && Array.isArray(window.MICHEL_PINNED_POSTS) ? window.MICHEL_PINNED_POSTS : [])
     .map((entry) => {
       if (typeof entry === 'string') {
         return { slugs: [entry, ...(knownPinnedAliases.get(entry) || [])], title: '' };
@@ -645,7 +670,7 @@ function mount(posts, force = false) {
   }, new Map());
   list.replaceChildren();
   list.className = 'all-posts-list all-posts-list--modeled';
-  list.dataset.layoutVersion = 'modeled-cabinet-v22-flush-frame-corners';
+  list.dataset.layoutVersion = 'modeled-cabinet-v23-no-legacy-flash';
   const cabinet = document.createElement('section');
   cabinet.className = 'modeled-cabinet-section';
   cabinet.setAttribute('aria-label', `${posts.length} posts in one cabinet`);
@@ -659,7 +684,17 @@ function mount(posts, force = false) {
   tooltip.setAttribute('aria-live', 'polite');
   cabinet.append(stage, labels);
   list.append(cabinet, tooltip);
-  const categoryEntries = [...groups.entries()].slice(0, 6);
+  // The owner must be able to reach every volume, including extra categories.
+  // Split busy categories into additional bays instead of clipping their books.
+  const categoryEntries = privateLibrary
+    ? [...groups.entries()].flatMap(([category, entries]) => {
+        const capacity = compactLayout ? 5 : 8;
+        return Array.from({ length: Math.ceil(entries.length / capacity) }, (_, page) => [
+          page ? `${category} · ${page + 1}` : category,
+          entries.slice(page * capacity, (page + 1) * capacity)
+        ]);
+      })
+    : [...groups.entries()].slice(0, 6);
   const groupEntries = pinnedPosts.length
     ? [['Pinned', pinnedPosts], ...categoryEntries]
     : categoryEntries;
@@ -673,6 +708,9 @@ function mount(posts, force = false) {
     labels.appendChild(label);
   });
   createCabinet(stage, groupEntries, compactLayout);
+  list.setAttribute('aria-busy', 'false');
+  document.body.classList.remove('bookshelf-model-loading');
+  document.body.classList.add('bookshelf-model-ready');
   window.__modeledBookshelf = {
     activeScenes,
     posts,
@@ -683,14 +721,14 @@ function mount(posts, force = false) {
   };
 }
 
-window.addEventListener('michel:posts-rendered', (event) => mount(event.detail?.posts));
-if (Array.isArray(window.MICHEL_BOOKSHELF_POSTS)) mount(window.MICHEL_BOOKSHELF_POSTS);
+window.addEventListener('michel:posts-rendered', (event) => mountBookshelf(event.detail?.posts));
+if (Array.isArray(window.MICHEL_BOOKSHELF_POSTS)) mountBookshelf(window.MICHEL_BOOKSHELF_POSTS);
 
 window.addEventListener('resize', () => {
   window.clearTimeout(remountTimer);
   remountTimer = window.setTimeout(() => {
-    const list = document.querySelector('#all-posts-list');
+    const list = mountedHost;
     if (!mounted || !list || !mountedPosts.length) return;
-    if (usesCompactCabinet(list) !== mountedLayout) mount(mountedPosts, true);
+    if (usesCompactCabinet(list) !== mountedLayout) mountBookshelf(mountedPosts, mountedOptions, true);
   }, 160);
 }, { passive: true });

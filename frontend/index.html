@@ -19,6 +19,11 @@
       })();
     </script>
     <style>
+      /* The legacy DOM shelf is only an error fallback. Keep it out of the
+         first paint while the modeled cabinet module initializes. */
+      body.bookshelf-model-loading #all-posts-list > .all-post-category {
+        display: none !important;
+      }
       html[data-site-theme="gallery"] .gallery-profile-card canvas,
       html[data-site-theme="gallery"] .gallery-profile-card [class*="mask"],
       html[data-site-theme="gallery"] .gallery-profile-card [id*="mask"],
@@ -55,7 +60,7 @@
     <link rel="stylesheet" href="./mobile.css?v=sketch-mobile-v2-20260713" />
     <link rel="stylesheet" href="./responsive.css?v=assistant-width-v19-20260716" />
   </head>
-  <body class="intro-running">
+  <body class="intro-running bookshelf-model-loading">
     <svg class="book-ink-filters" aria-hidden="true" focusable="false">
       <filter id="book-ink-warp" x="-16%" y="-8%" width="132%" height="116%">
         <feTurbulence type="fractalNoise" baseFrequency="0.035 0.72" numOctaves="2" seed="11" result="noise" />
@@ -147,7 +152,7 @@
             <p class="blog-group-label">All posts</p>
             <span id="all-posts-count" aria-live="polite"></span>
           </div>
-          <div class="all-posts-list" id="all-posts-list" aria-label="All blog posts"></div>
+          <div class="all-posts-list" id="all-posts-list" aria-label="All blog posts" aria-busy="true"></div>
           <section class="writing-activity" id="writing-activity" aria-labelledby="writing-activity-title">
             <div class="writing-activity-head">
               <div>
@@ -228,7 +233,7 @@
     <script src="./authored-posts.js?v=reader-edit-v29-20260703"></script>
   <script src="./pinned-posts.js?v=pinned-plaque-v4-20260725"></script>
   <script src="./home.js?v=spine-fit-v32-20260812"></script>
-    <script type="module" src="./all-posts-3d.js?v=modeled-cabinet-v22-20260822"></script>
+    <script type="module" src="./all-posts-3d.js?v=modeled-cabinet-v23-20260827" onerror="document.body.classList.remove('bookshelf-model-loading'); document.querySelector('#all-posts-list')?.setAttribute('aria-busy', 'false')"></script>
     <script src="./motion.js?v=gallery-no-title-mask-v85-20260611"></script>
     <script src="./handwriting-alphabet-data.js?v=hero-calibrated-v1-20260721"></script>
     <script src="./handwriting-outline-data.js?v=caveat-svg-700-v1-20260723"></script>

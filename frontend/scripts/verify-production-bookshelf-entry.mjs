@@ -23,8 +23,12 @@ if (!deployScript.includes('all-posts-3d.js')) {
   throw new Error('The deploy manifest must include all-posts-3d.js.');
 }
 
-if (!bookshelfModule.includes("modeled-cabinet-v22-flush-frame-corners")) {
-  throw new Error('The production bookshelf module is not the approved v22 layout.');
+if (!bookshelfModule.includes("modeled-cabinet-v23-no-legacy-flash")) {
+  throw new Error('The production bookshelf module is not the approved v23 layout.');
+}
+
+if (!indexHtml.includes('bookshelf-model-loading')) {
+  throw new Error('index.html must suppress the legacy shelf during modeled cabinet initialization.');
 }
 
 if (!bookshelfModule.includes("./lib/three/three.module.js")) {
@@ -43,4 +47,4 @@ if (!/\bassets\s+lib\b/.test(deployScript)) {
   throw new Error('The deploy manifest must include the complete Three.js dependency directory.');
 }
 
-console.log('Production bookshelf entry verified: modeled cabinet v22.');
+console.log('Production bookshelf entry verified: modeled cabinet v23 without legacy first-paint flash.');
