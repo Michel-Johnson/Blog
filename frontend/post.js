@@ -887,6 +887,7 @@
     }
     if (!stableFlowImageMode) fitAbsoluteImages(content);
     window.MichelAnnotations?.enhance(content);
+    window.MichelFoldBlocks?.enhance(content);
   }
 
   function renderMarkdownPost(markdown) {
@@ -917,11 +918,13 @@
       typographer: true,
       breaks: true
     });
-    const rawHtml = md.render(normalizeMathShortcutsInMarkdown(
+    const normalizedMarkdown = normalizeMathShortcutsInMarkdown(
       preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(trimTrailingEmptyContent(markdown)))))
-    ));
+    );
+    const rawHtml = md.render(window.MichelFoldBlocks ? window.MichelFoldBlocks.expand(normalizedMarkdown, md) : normalizedMarkdown);
     const cleanHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
-      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "aria-label", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer"]
+      ADD_TAGS: ["details", "summary"],
+      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "aria-label", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer", "data-fold-block"]
     }) : rawHtml;
     setArticleHtml(cleanHtml);
   }

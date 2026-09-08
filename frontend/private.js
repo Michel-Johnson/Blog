@@ -11,9 +11,10 @@
   const publishedEmpty = document.querySelector("[data-published-empty]");
   const draftsEmpty = document.querySelector("[data-drafts-empty]");
   let csrfToken = "";
-
-  const bookColors = ["#f3eddd", "#e3ece3", "#f1dddd", "#e4e2ed", "#f4e8bd", "#e6e0d5"];
-  const leans = [-1.2, .4, -.5, 1, -.8, .6];
+  const bookLinks = document.querySelector('[data-book-links]');
+  const booksLoading = document.querySelector('[data-books-loading]');
+  let bookshelfModule = null;
+  let renderVersion = 0;
 
   async function request(path, options = {}) {
     const response = await fetch(path, { credentials: "same-origin", ...options });
@@ -31,7 +32,12 @@
     workspace.hidden = locked;
     logoutButton.hidden = locked;
     if (locked) {
-      bookcase.querySelectorAll(".private-shelf-row").forEach((row) => row.remove());
+      renderVersion += 1;
+      bookshelfModule?.clearBookshelf();
+      bookcase.replaceChildren();
+      bookLinks.replaceChildren();
+      bookLinks.classList.remove('is-modeled');
+      booksLoading.hidden = true;
       draftsContainer.querySelectorAll(".private-paper").forEach((paper) => paper.remove());
       publishedCount.textContent = "0 volumes";
       draftCount.textContent = "0 sheets";
@@ -61,72 +67,44 @@
     }).format(date);
   }
 
-  function titleLength(title) {
-    return Array.from(String(title || "Untitled").replace(/\s+/g, "")).length;
-  }
-
-  function bookWidth(title) {
-    const length = titleLength(title);
-    return Math.round(Math.min(142, 76 + Math.log2(length + 1) * 15));
-  }
-
-  function isCjk(title) {
-    return /[\u3400-\u9fff\uf900-\ufaff]/u.test(title);
-  }
-
-  function makeBook(post, index) {
-    const title = String(post.title || "Untitled").trim() || "Untitled";
-    const anchor = document.createElement("a");
-    anchor.className = "private-book";
-    anchor.href = editorHref(post);
-    anchor.title = `Edit ${title}`;
-    anchor.style.setProperty("--book-width", `${bookWidth(title)}px`);
-    anchor.style.setProperty("--book-height", `${252 + (index % 4) * 12}px`);
-    anchor.style.setProperty("--book-color", bookColors[index % bookColors.length]);
-    anchor.style.setProperty("--book-lean", `${leans[index % leans.length]}deg`);
-
-    const titleElement = document.createElement("span");
-    titleElement.className = `private-book-title ${isCjk(title) ? "is-cjk" : "is-latin"}`;
-    const titleInner = document.createElement("span");
-    titleInner.textContent = title.length > 38 ? `${title.slice(0, 37)}…` : title;
-    titleElement.append(titleInner);
-
-    const meta = document.createElement("span");
-    meta.className = "private-book-meta";
-    meta.textContent = String(post.category || "Notes").slice(0, 8);
-    anchor.append(titleElement, meta);
-    return anchor;
-  }
-
-  function distributeBooks(posts) {
-    const rows = [];
-    let row = [];
-    let used = 0;
-    const target = 1050;
-    posts.forEach((post) => {
-      const width = bookWidth(post.title) + 8;
-      if (row.length && used + width > target) {
-        rows.push(row);
-        row = [];
-        used = 0;
-      }
-      row.push(post);
-      used += width;
-    });
-    if (row.length) rows.push(row);
-    return rows;
-  }
-
-  function renderBooks(posts) {
-    bookcase.querySelectorAll(".private-shelf-row").forEach((row) => row.remove());
+  async function renderBooks(posts) {
+    const version = ++renderVersion;
+    bookshelfModule?.clearBookshelf();
+    bookcase.replaceChildren();
+    bookLinks.replaceChildren();
+    bookLinks.classList.remove('is-modeled');
     publishedEmpty.hidden = posts.length !== 0;
     publishedCount.textContent = `${posts.length} ${posts.length === 1 ? "volume" : "volumes"}`;
-    distributeBooks(posts).forEach((rowPosts, rowIndex) => {
-      const row = document.createElement("div");
-      row.className = "private-shelf-row";
-      rowPosts.forEach((post, index) => row.append(makeBook(post, rowIndex * 9 + index)));
-      bookcase.append(row);
+    booksLoading.hidden = !posts.length;
+    const volumes = posts.map((post) => ({
+      ...post,
+      title: String(post.title || 'Untitled'),
+      category: String(post.category || 'Notes'),
+      excerpt: String(post.excerpt || ''),
+      href: editorHref(post)
+    }));
+    volumes.forEach((post) => {
+      const link = document.createElement('a');
+      link.href = post.href;
+      link.textContent = post.title;
+      bookLinks.append(link);
     });
+    if (!volumes.length) return;
+    try {
+      const module = await import('./all-posts-3d.js?v=shared-shelf-20260831');
+      if (version !== renderVersion) return;
+      bookshelfModule = module;
+      module.mountBookshelf(volumes, { host: bookcase, privateLibrary: true }, true);
+      bookLinks.classList.add('is-modeled');
+    } catch (error) {
+      if (version !== renderVersion) return;
+      bookshelfModule?.clearBookshelf();
+      bookcase.replaceChildren();
+      // A readable list remains usable if WebGL or its module is unavailable.
+      console.warn('Bookshelf unavailable; showing writing links.', error);
+    } finally {
+      if (version === renderVersion) booksLoading.hidden = true;
+    }
   }
 
   function makePaper(post, index) {

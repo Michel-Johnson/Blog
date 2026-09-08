@@ -7,7 +7,7 @@
     <meta name="supported-color-schemes" content="light" />
     <meta name="theme-color" content="#fbfaf7" />
     <title>Write · Michel Johnson</title>
-    <link rel="stylesheet" href="./styles.css?v=assistant-stream-scroll-v48-20260822" />
+    <link rel="stylesheet" href="./styles.css?v=fold-blocks-v1-20260829" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <link rel="stylesheet" href="./assets/katex/katex.min.css?v=0.16.10-local-1" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
@@ -18,6 +18,7 @@
     <script src="./assets/katex/contrib/auto-render.min.js?v=0.16.10-local-1"></script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/build/highlight.min.js"></script>
     <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
+    <script src="./fold-blocks.js?v=fold-blocks-local-v1-20260829"></script>
     <style>
       :root {
         --writer-bg: #fbfaf7;
@@ -622,6 +623,10 @@
 
       .editor-selection-actions button:last-child {
         background: #ffe473;
+      }
+
+      .editor-selection-actions button[data-fold-selection] {
+        background: #f0e7d2;
       }
 
       .editor-selection-actions button:hover,
@@ -1436,6 +1441,46 @@
         padding: 8px 10px;
       }
 
+      .fold-block {
+        margin: 1.15em 0;
+        border: 1px solid #d5c8aa;
+        border-radius: 9px;
+        background: #fffaf0;
+        overflow: clip;
+      }
+
+      .fold-block-editor-shell {
+        width: 100%;
+      }
+
+      .fold-block > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 54px;
+        padding: 0 18px;
+        cursor: pointer;
+        color: var(--writer-ink);
+        background: linear-gradient(90deg, #fff0ac, #fffaf0);
+        font: 750 15px/1.35 var(--ui-font);
+        list-style: none;
+      }
+
+      .fold-block > summary::-webkit-details-marker { display: none; }
+      .fold-block > summary small {
+        color: var(--writer-muted);
+        font: 650 12px/1 var(--ui-font);
+      }
+
+      .fold-block__body {
+        padding: 2px 18px 14px;
+        border-top: 1px dashed #ddcfad;
+      }
+
+      .fold-block__body > :first-child { margin-top: 14px; }
+      .fold-block__body > :last-child { margin-bottom: 0; }
+
       .is-dragging .markdown-pane {
         box-shadow: inset 0 0 0 3px rgba(45,102,216,.2);
       }
@@ -1795,7 +1840,7 @@
     </dialog>
 
     <script src="./inline-annotations.js?v=annotation-popover-fix-20260813"></script>
-    <script src="./admin.js?v=stable-flow-images-local-v1-20260822"></script>
+    <script src="./admin.js?v=fold-blocks-v1-20260829"></script>
   <script src="./reader-editor.js?v=remove-details-button-v13-20260812"></script>
     <script src="./assistant.js?v=assistant-stream-scroll-v47-20260822"></script>
   </body>

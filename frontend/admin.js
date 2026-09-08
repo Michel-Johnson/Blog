@@ -1060,6 +1060,9 @@
       usageStatistics: false,
       autofocus: false,
       hideModeSwitch: false,
+      customHTMLRenderer: window.MichelFoldBlocks ? {
+        fold: window.MichelFoldBlocks.toastRenderer
+      } : undefined,
       toolbarItems: [
         ["heading", "bold", "italic", "strike"],
         ["hr", "quote"],
@@ -1210,6 +1213,22 @@
     });
   }
 
+  function foldEditorSelection(snapshot) {
+    if (!window.MichelFoldBlocks || !snapshot?.text) return;
+    const wrapped = window.MichelFoldBlocks.wrapSelection(getMarkdown(), snapshot.text);
+    if (!wrapped) {
+      setStatus(saveStatus, "无法定位选区，请选择连续文本后重试");
+      return;
+    }
+    removeEditorSelectionActions();
+    window.getSelection()?.removeAllRanges();
+    setMarkdown(wrapped.markdown);
+    renderPreview();
+    saveLocalDraft({ quiet: true });
+    scheduleAutosave();
+    setStatus(saveStatus, "所选内容已设为默认收起");
+  }
+
   async function explainEditorSelection(snapshot, button) {
     if (selectionExplainInProgress) return;
     selectionExplainInProgress = true;
@@ -1255,7 +1274,11 @@
     const explainButton = document.createElement("button");
     explainButton.type = "button";
     explainButton.textContent = "AI 搜索并简释";
-    actions.append(askButton, explainButton);
+    const foldButton = document.createElement("button");
+    foldButton.type = "button";
+    foldButton.dataset.foldSelection = "";
+    foldButton.textContent = "收起";
+    actions.append(askButton, explainButton, foldButton);
     document.body.appendChild(actions);
     const box = actions.getBoundingClientRect();
     const left = Math.min(window.innerWidth - box.width - 12, Math.max(12, snapshot.rect.left));
@@ -1266,6 +1289,7 @@
     actions.addEventListener("pointerdown", (event) => event.preventDefault());
     askButton.addEventListener("click", () => askAiAboutSelection(snapshot));
     explainButton.addEventListener("click", () => explainEditorSelection(snapshot, explainButton));
+    foldButton.addEventListener("click", () => foldEditorSelection(snapshot));
     editorSelectionActions = actions;
   }
 
@@ -1930,11 +1954,13 @@
       typographer: true,
       breaks: true
     });
-    const rawHtml = md.render(normalizeMathShortcutsInMarkdown(
+    const normalizedMarkdown = normalizeMathShortcutsInMarkdown(
       preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(markdown))))
-    ));
+    );
+    const rawHtml = md.render(window.MichelFoldBlocks ? window.MichelFoldBlocks.expand(normalizedMarkdown, md) : normalizedMarkdown);
     fields.preview.innerHTML = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
-      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer"]
+      ADD_TAGS: ["details", "summary"],
+      ADD_ATTR: ["target", "rel", "style", "width", "height", "class", "data-editor-width", "data-image-reserve", "data-image-layer", "data-writer-spacer", "data-fold-block"]
     }) : rawHtml;
     if (window.renderMathInElement) {
       window.renderMathInElement(fields.preview, {
@@ -1949,6 +1975,7 @@
     enhancePdfLinks(fields.preview);
     fitPreviewAbsoluteImages(fields.preview);
     window.MichelAnnotations?.enhance(fields.preview);
+    window.MichelFoldBlocks?.enhance(fields.preview);
   }
 
   function enhancePdfLinks(root) {
