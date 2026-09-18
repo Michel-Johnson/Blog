@@ -64,6 +64,7 @@
   };
   let petAnimationTimer = 0;
   let petAnimationState = "";
+  let editorAgentBusy = false;
   let petAnimationFrame = 0;
   const assistantFrameKey = "michel.readerAssistantFrame.v1";
   const assistantDockKey = "michel.readerAssistantDock.v1";
@@ -95,6 +96,7 @@
   }
 
   function setPetState(state) {
+    if (state === "rest" && (editorAgentBusy || controller)) state = "work";
     if (!petFrame || !petAnimations[state]) return;
     window.clearInterval(petAnimationTimer);
     petAnimationTimer = 0;
@@ -1097,6 +1099,10 @@
   window.visualViewport?.addEventListener("resize", scheduleSelectionVisualSync, { passive: true });
 
   window.MichelAssistant = {
+    setEditorBusy(busy) {
+      editorAgentBusy = Boolean(busy);
+      setPetState(editorAgentBusy ? "work" : "rest");
+    },
     activateSelection(next) {
       activateSelection(next, { focus: true });
     }

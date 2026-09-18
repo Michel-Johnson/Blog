@@ -1,0 +1,26 @@
+/* Reference 47: Baskervville Italic, light staggered lines. */
+@font-face{font-family:Baskervville;src:url("./fonts/baskervville-italic-400.ttf") format("truetype");font-style:italic;font-weight:400;font-display:swap}
+.intro{left:10%;top:18%}
+.intro h1{font-family:Baskervville,Georgia,serif;font-style:italic;font-weight:400;font-synthesis:none;font-size:clamp(42px,5.8vw,90px);letter-spacing:.005em;line-height:1.2;margin:0}
+.intro h1 span{display:block;white-space:nowrap}
+.intro h1 span:nth-child(2){margin-inline-start:4vw}
+@media(max-width:700px){.intro{left:7%;right:5%}.intro h1{font-size:clamp(26px,7vw,49px)}}
+
+/* Header sizes account for the opening composition's existing 0.8 scale. */
+.opening header{align-items:center;gap:28px}
+.opening .wordmark{font-family:Baskervville,Georgia,serif;font-style:italic;font-weight:400;font-synthesis:none;font-size:30px;line-height:1.2;letter-spacing:0;white-space:nowrap}
+.opening nav{gap:32px;font-family:Arial,Helvetica,sans-serif;font-size:17.5px;font-weight:400;line-height:1.5;letter-spacing:.01em}
+.opening nav a{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:55px;white-space:nowrap}
+.opening nav a:not(.contact)::after{content:"";position:absolute;inset-inline:0;bottom:9px;height:1px;background:currentColor;opacity:0;transition:opacity 150ms cubic-bezier(.2,0,0,1)}
+.opening nav a:not(.contact):hover::after,.opening nav a:not(.contact):focus-visible::after{opacity:1}
+.opening nav .contact{margin-left:8px;padding:0 30px;border:1px solid currentColor;border-radius:999px;transition:background-color 150ms cubic-bezier(.2,0,0,1),color 150ms cubic-bezier(.2,0,0,1),scale 150ms cubic-bezier(.2,0,0,1)}
+.opening nav .contact:hover{background:var(--ink);color:var(--paper)}
+.opening nav .contact:active{scale:.96}
+.opening header a:focus-visible{outline:2px solid var(--ink);outline-offset:5px}
+@media(max-width:700px){
+  .opening header{align-items:flex-start;gap:16px}
+  .opening .wordmark{font-size:24px;line-height:1.25;white-space:normal;flex:0 0 108px;max-width:108px;padding-top:9px}
+  .opening nav{gap:0 16px;font-size:16.25px;flex:1;min-width:0}
+  .opening nav .contact{margin-left:0;padding:0 20px}
+}
+@media(prefers-reduced-motion:reduce){.opening nav a::after,.opening nav .contact{transition:none}.opening nav .contact:active{scale:1}}

@@ -127,6 +127,28 @@ body.is-html-editor {
   line-height: 1.65 !important;
 }
 
+/* Toast UI's WYSIWYG code block otherwise combines its pale background with
+   syntax colors inherited from the dark reader theme. Keep editing legible
+   and visually consistent with the rendered article. */
+.rich-editor .ProseMirror pre,
+.rich-editor .toastui-editor-contents pre {
+  border: 2px solid #2d2d2d !important;
+  border-radius: 12px !important;
+  background: #27231f !important;
+  color: #fff8e8 !important;
+  box-shadow: 4px 4px 0 rgba(45, 45, 45, .18) !important;
+}
+
+.rich-editor .ProseMirror pre code,
+.rich-editor .ProseMirror pre code *,
+.rich-editor .toastui-editor-contents pre code,
+.rich-editor .toastui-editor-contents pre code * {
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
 .rich-editor .ProseMirror :is(ul, ol),
 .rich-editor .toastui-editor-contents :is(ul, ol),
 .admin-preview-body :is(ul, ol),

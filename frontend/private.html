@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow, noarchive">
     <title>Private Library · Michel Johnson</title>
     <link rel="stylesheet" href="./styles.css">
-    <link rel="stylesheet" href="./private.css?v=shared-shelf-20260831">
+    <link rel="stylesheet" href="./private.css?v=admin-menu-v1-20260909">
   </head>
   <body class="private-body">
     <main class="private-shell">
@@ -18,8 +18,14 @@
           <span>Michel Johnson</span>
         </a>
         <div class="nav-links">
-          <a href="./?home=1#blog">Blog</a>
-          <button type="button" class="private-logout" data-logout hidden>Lock</button>
+          <details class="private-admin-menu">
+            <summary>后台</summary>
+            <nav class="private-admin-menu-panel" aria-label="后台工具">
+              <a href="/api/admin/traffic-page">访问统计</a>
+              <a href="/api/admin/traffic-page#addresses">访客 IP</a>
+              <a href="./admin.html?drafts=1">文章后台</a>
+            </nav>
+          </details>
         </div>
       </nav>
 
@@ -50,31 +56,20 @@
           <div class="private-section-heading">
             <div>
               <p class="private-section-index">01</p>
-              <h2 id="private-books-title">Published writing</h2>
+              <h2 id="private-books-title">Private writing</h2>
             </div>
             <p data-published-count>0 volumes</p>
           </div>
-          <p class="private-empty" data-published-empty hidden>No published volumes yet.</p>
+          <p class="private-empty" data-published-empty hidden>No private drafts yet. Public articles appear on the Blog page.</p>
           <p data-books-loading hidden role="status">Loading library…</p>
-          <div data-private-bookcase aria-label="Published writing bookshelf"></div>
-          <nav class="private-book-links" data-book-links aria-label="Edit published writing"></nav>
+          <div data-private-bookcase aria-label="Private writing bookshelf"></div>
+          <nav class="private-book-links" data-book-links aria-label="Edit private writing"></nav>
         </section>
 
-        <section class="private-section private-drafts-section" aria-labelledby="private-drafts-title">
-          <div class="private-section-heading">
-            <div>
-              <p class="private-section-index">02</p>
-              <h2 id="private-drafts-title">Draft papers</h2>
-            </div>
-            <p data-draft-count>0 sheets</p>
-          </div>
-          <div class="private-paper-grid" data-private-drafts>
-            <div class="private-empty" data-drafts-empty hidden>No saved drafts yet.</div>
-          </div>
-        </section>
+
       </section>
     </main>
 
-    <script src="./private.js?v=shared-shelf-20260831" defer></script>
+    <script src="./private.js?v=automatic-lock-clean-nav-v3-20260910" defer></script>
   </body>
 </html>

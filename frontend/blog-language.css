@@ -1,0 +1,5 @@
+.language-switch{white-space:nowrap;font:inherit;min-height:32px;display:inline-flex;align-items:center;justify-content:center;padding:5px 12px;border:1px solid currentColor;border-radius:999px}
+.translation-notice{font:400 13px/1.65 Arial,sans-serif;color:inherit;background:rgba(128,128,128,.07);border-inline-start:2px solid currentColor;padding:12px 16px;margin:16px 0;max-width:75ch}
+.translation-notice a{text-decoration:underline;text-underline-offset:3px}
+.language-switch:focus-visible,.translation-notice a:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+html[lang="en"] .book-contents .is-last-read .book-chapter-title::after{content:"Last read"}

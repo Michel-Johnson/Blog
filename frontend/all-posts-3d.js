@@ -207,61 +207,80 @@ function makePageTexture(renderer) {
 }
 
 function makeSpineTexture(renderer, title, color, spineWidth, spineHeight) {
-  const textureHeight = 2200;
-  const textureWidth = Math.max(420, Math.round(textureHeight * (spineWidth / spineHeight)));
-  let typography = null;
-  const texture = canvasTexture(renderer, textureWidth, textureHeight, (ctx, width, height) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalAlpha = 0.14;
-    for (let x = 28; x < width; x += 42) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x + 8, height);
-      ctx.stroke();
+  // SVG keeps glyph edges crisp at the small on-screen sizes used by the
+  // cabinet. It is still loaded as a Three texture so the book remains a
+  // normal mesh and all existing picking/animation code stays unchanged.
+  const textureHeight = 2400;
+  const textureWidth = Math.max(520, Math.round(textureHeight * (spineWidth / spineHeight)));
+  const normalizedTitle = normalizeSpineTitle(title);
+  const measureCanvas = document.createElement('canvas');
+  const measureContext = measureCanvas.getContext('2d');
+  const isLatin = /^[\x00-\x7f]+$/.test(normalizedTitle);
+  let typography;
+  let textMarkup = '';
+  const escapeXml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;'
+  }[char]));
+  const fontFamily = 'Georgia, Noto Serif SC, serif';
+
+  if (isLatin) {
+    typography = chooseLatinSpineLayout(measureContext, normalizedTitle, textureWidth, textureHeight);
+    const lineGap = typography.fontSize * 0.94;
+    const startY = textureHeight * 0.5 - ((typography.lines.length - 1) * lineGap) * 0.5;
+    textMarkup = `<g transform="translate(${textureWidth * 0.5} ${textureHeight * 0.5}) rotate(90) scale(${typography.scaleX} 1) translate(${-textureWidth * 0.5} ${-textureHeight * 0.5})">${typography.lines.map((line, index) => `<text x="${textureWidth * 0.5}" y="${startY + index * lineGap}" text-anchor="middle" dominant-baseline="middle">${escapeXml(line)}</text>`).join('')}</g>`;
+  } else {
+    // Keep Latin runs together and use two vertical columns for long titles.
+    // This prevents “cursor” and “Agent” from becoming a stack of tiny letters.
+    const tokens = normalizedTitle.match(/[A-Za-z0-9]+(?:[._/-][A-Za-z0-9]+)*|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|[^\s]/gu) || [normalizedTitle];
+    measureContext.font = `700 100px ${fontFamily}`;
+    const units = tokens.map(token => ({ token, word: /^[A-Za-z0-9]/.test(token),
+      length: /^[A-Za-z0-9]/.test(token) ? Math.max(1, measureContext.measureText(token).width / 100) : 1 }));
+    const extent = entries => entries.reduce((sum, entry) => sum + entry.length + 0.22, 0) - 0.22;
+    const available = textureHeight - 320;
+    const singleSize = Math.min(textureWidth * 0.3, available / extent(units));
+    let columns = [units];
+    if (singleSize < textureWidth * 0.235 && units.length > 1) {
+      let best = Infinity;
+      for (let cut = 1; cut < units.length; cut++) {
+        const candidate = [units.slice(0, cut), units.slice(cut)];
+        const score = Math.max(...candidate.map(extent));
+        if (score < best) { best = score; columns = candidate; }
+      }
     }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#423f39';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const normalizedTitle = normalizeSpineTitle(title);
-    const isLatin = /^[\x00-\x7f]+$/.test(normalizedTitle);
-    const maxFont = width * 0.34;
-    let fontSize = maxFont;
-    const setFont = () => { ctx.font = `700 ${Math.round(fontSize)}px Georgia, "Noto Serif SC", serif`; };
-    setFont();
-    if (isLatin) {
-      typography = chooseLatinSpineLayout(ctx, normalizedTitle, width, height);
-      fontSize = typography.fontSize;
-      setFont();
-      const lineGap = fontSize * 0.94;
-      ctx.save();
-      ctx.translate(width * 0.5, height * 0.5);
-      ctx.rotate(Math.PI * 0.5);
-      ctx.scale(typography.scaleX, 1);
-      const startY = -((typography.lines.length - 1) * lineGap) * 0.5;
-      typography.lines.forEach((line, index) => ctx.fillText(line, 0, startY + index * lineGap));
-      ctx.restore();
-    } else {
-      const display = Array.from(normalizedTitle);
-      fontSize = Math.min(maxFont, (height - 360) / Math.max(display.length * 1.08, 1));
-      setFont();
-      const lineHeight = fontSize * 1.08;
-      const startY = height * 0.5 - ((display.length - 1) * lineHeight) * 0.5;
-      display.forEach((char, index) => ctx.fillText(char, width * 0.5, startY + index * lineHeight));
-      typography = {
-        title: normalizedTitle,
-        lines: [display.join('')],
-        lineCount: 1,
-        fontSize,
-        scaleX: 1,
-        truncated: display.join('') !== normalizedTitle,
-        orientation: 'upright-cjk'
-      };
-    }
-  });
+    const columnCount = columns.length;
+    const fontSize = Math.min(textureWidth * (columnCount === 1 ? 0.3 : 0.25), available / Math.max(...columns.map(extent)));
+    columns.forEach((entries, column) => {
+      // Read each column from top to bottom, starting with the left column.
+      const x = columnCount === 1 ? textureWidth / 2 : textureWidth * (column === 0 ? 0.32 : 0.68);
+      let cursor = (textureHeight - extent(entries) * fontSize) / 2;
+      entries.forEach(({token, word, length}) => {
+        const y = cursor + length * fontSize / 2;
+        textMarkup += `<g transform="translate(${x} ${y})${word ? ' rotate(90)' : ''}"><text x="0" y="0" text-anchor="middle" dominant-baseline="central">${escapeXml(token)}</text></g>`;
+        cursor += (length + 0.22) * fontSize;
+      });
+    });
+    typography = {
+      title: normalizedTitle,
+      lines: [tokens.join('')],
+      lineCount: columnCount,
+      fontSize,
+      scaleX: 1,
+      truncated: false,
+      orientation: 'upright-cjk',
+      strategy: columnCount === 2 ? 'vertical-columns' : 'vertical-single-column'
+    };
+  }
+
+  const grain = Array.from({ length: Math.max(4, Math.floor(textureWidth / 42)) }, (_, index) => {
+    const x = 28 + index * 42;
+    return `<path d="M ${x} 0 L ${x + 8} ${textureHeight}" />`;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${textureWidth}" height="${textureHeight}" viewBox="0 0 ${textureWidth} ${textureHeight}"><rect width="100%" height="100%" fill="${escapeXml(color)}"/><g opacity=".14" stroke="#fff" stroke-width="4">${grain}</g><g fill="#423f39" font-family="${fontFamily}" font-size="${typography.fontSize}" font-weight="700">${textMarkup}</g></svg>`;
+  const texture = new THREE.TextureLoader().load(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
   texture.userData.spineTypography = typography;
   return texture;
 }

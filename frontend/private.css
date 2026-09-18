@@ -311,3 +311,47 @@
   .private-paper-grid { grid-template-columns: 1fr; }
   .private-paper { min-height: 240px; }
 }
+.private-admin-menu {
+  position: relative;
+}
+
+.private-admin-menu > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.private-admin-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.private-admin-menu > summary::after {
+  content: " ▾";
+  font-size: .75em;
+}
+
+.private-admin-menu[open] > summary::after {
+  content: " ▴";
+}
+
+.private-admin-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 20;
+  width: 210px;
+  max-width: 82vw;
+  padding: 8px;
+  border: 1px solid var(--ink, #2d2d2d);
+  background: var(--paper, #fefaf2);
+}
+
+.private-admin-menu-panel a {
+  display: block;
+  padding: 10px 11px;
+  white-space: nowrap;
+}
+
+.private-admin-menu-panel a:hover,
+.private-admin-menu-panel a:focus-visible {
+  background: rgba(45, 45, 45, .07);
+}

@@ -6,12 +6,13 @@
   const draftInboxListEl = document.querySelector("[data-draft-inbox-list]");
   const writerModeEl = document.querySelector("[data-writer-mode]");
   const workbench = document.querySelector("[data-workbench]");
-  const logoutButton = document.querySelector("[data-logout]");
   const saveStatus = document.querySelector("[data-save-status]");
   const dropZone = document.querySelector("[data-drop-zone]");
   const richEditorEl = document.querySelector("[data-rich-editor]");
   const htmlVisualEditor = document.querySelector("[data-html-visual-editor]");
-  const undoButton = document.querySelector("[data-undo]");
+  const versionsButton = document.querySelector("[data-versions]");
+  const versionDialog = document.querySelector("[data-version-dialog]");
+  const versionListEl = document.querySelector("[data-version-list]");
   const unpublishButton = document.querySelector("[data-unpublish]");
   const publishButton = document.querySelector("[data-publish]");
   const unpublishDialog = document.querySelector("[data-unpublish-dialog]");
@@ -40,11 +41,15 @@
     category: document.querySelector("[data-post-category]"),
     date: document.querySelector("[data-post-date]"),
     tags: document.querySelector("[data-post-tags]"),
+    bookTitle: document.querySelector("[data-post-book-title]"),
+    bookSlug: document.querySelector("[data-post-book-slug]"),
+    chapterOrder: document.querySelector("[data-post-chapter-order]"),
     excerpt: document.querySelector("[data-post-excerpt]"),
     markdown: document.querySelector("[data-markdown]"),
     preview: document.querySelector("[data-preview]"),
     image: document.querySelector("[data-image-input]")
   };
+  const bookChapterListEl = document.querySelector("[data-book-chapter-list]");
   const adminParams = new URLSearchParams(window.location.search);
   const editSlug = adminParams.get("edit") || "";
   const returnUrl = adminParams.get("return") || "";
@@ -67,6 +72,7 @@
   let draftEventSource = null;
   let applyingRemoteDraft = false;
   let autosaveTimer = null;
+  let autosaveBurstStartedAt = 0;
   let editorMathTimer = null;
   let mathOverlayLayer = null;
   let mathOverlayHitboxes = [];
@@ -120,7 +126,7 @@
     ? new BroadcastChannel("michel-writer-draft-sync-v1")
     : null;
   const stableFlowImageMode = true;
-  const writerVersion = "stable-flow-images-local-v1-20260822";
+  const writerVersion = "chapter-planner-v3-20260910";
   const defaultImageWidth = 42;
   const imageMoveSensitivity = 1;
   const imageResizeSensitivity = 0.75;
@@ -148,6 +154,104 @@
       .slice(0, 80);
   }
 
+  function postIdentityValues(post) {
+    return [
+      post?.draftId,
+      post?.slug,
+      post?.originalSlug,
+      ...(Array.isArray(post?.aliases) ? post.aliases : [])
+    ].map((value) => String(value || "").trim()).filter(Boolean);
+  }
+
+  function isCurrentEditorPost(post) {
+    const current = new Set([
+      activeDraftId,
+      activeDraftSlug,
+      activeOriginalSlug,
+      fields.slug?.value
+    ].map((value) => String(value || "").trim()).filter(Boolean));
+    return postIdentityValues(post).some((identity) => current.has(identity));
+  }
+
+  function currentBookChapters() {
+    const desiredBook = slugify(fields.bookSlug?.value || fields.bookTitle?.value);
+    if (!desiredBook) return [];
+    const combined = [
+      ...(Array.isArray(window.MICHEL_AUTHORED_POSTS) ? window.MICHEL_AUTHORED_POSTS : []),
+      ...draftList
+    ];
+    const unique = new Map();
+    combined.forEach((post) => {
+      if (!post || isCurrentEditorPost(post)) return;
+      const candidateBook = slugify(post.bookSlug || post.bookTitle || "");
+      if (candidateBook !== desiredBook) return;
+      const key = String(post.draftId || post.slug || post.title || unique.size);
+      unique.set(key, post);
+    });
+    return [...unique.values()].sort((a, b) => {
+      const order = Number(a.chapterOrder || 0) - Number(b.chapterOrder || 0);
+      return order || String(a.date || "").localeCompare(String(b.date || "")) || String(a.title || "").localeCompare(String(b.title || ""));
+    });
+  }
+
+  function chapterPositionLabel(position, chapters) {
+    if (!chapters.length) return "1 · First chapter";
+    if (position === 1) return "1 · Before chapter 1";
+    if (position === chapters.length + 1) return `${position} · After chapter ${chapters.length}`;
+    return `${position} · Between chapters ${position - 1} and ${position}`;
+  }
+
+  function renderBookChapterPlanner() {
+    if (!fields.chapterOrder || !bookChapterListEl) return;
+    const bookSlug = slugify(fields.bookSlug?.value || fields.bookTitle?.value);
+    const previousPosition = Math.floor(Number(fields.chapterOrder.dataset.requestedPosition || fields.chapterOrder.value || 0));
+    delete fields.chapterOrder.dataset.requestedPosition;
+    fields.chapterOrder.replaceChildren();
+    bookChapterListEl.replaceChildren();
+    if (!bookSlug) {
+      const option = new Option("Choose a book first", "");
+      fields.chapterOrder.append(option);
+      const hint = document.createElement("p");
+      hint.textContent = "Enter a book title to see its existing chapters.";
+      bookChapterListEl.append(hint);
+      return;
+    }
+
+    const chapters = currentBookChapters();
+    const maxPosition = chapters.length + 1;
+    const desiredPosition = Math.min(maxPosition, Math.max(1, previousPosition || maxPosition));
+    for (let position = 1; position <= maxPosition; position += 1) {
+      fields.chapterOrder.append(new Option(chapterPositionLabel(position, chapters), String(position)));
+    }
+    fields.chapterOrder.value = String(desiredPosition);
+
+    const heading = document.createElement("div");
+    heading.className = "reader-editor-chapter-plan-heading";
+    const headingTitle = document.createElement("strong");
+    headingTitle.textContent = chapters.length ? `${chapters.length} existing ${chapters.length === 1 ? "chapter" : "chapters"}` : "No existing chapters";
+    const headingHint = document.createElement("span");
+    headingHint.textContent = "The yellow row is this article";
+    heading.append(headingTitle, headingHint);
+    bookChapterListEl.append(heading);
+
+    const list = document.createElement("ol");
+    const arranged = chapters.slice();
+    arranged.splice(desiredPosition - 1, 0, { currentEditorArticle: true, title: fields.title?.value.trim() || "This article" });
+    arranged.forEach((chapter, index) => {
+      const item = document.createElement("li");
+      if (chapter.currentEditorArticle) item.className = "is-current";
+      const number = document.createElement("span");
+      number.textContent = String(index + 1).padStart(2, "0");
+      const title = document.createElement("strong");
+      title.textContent = chapter.title || "Untitled";
+      const status = document.createElement("em");
+      status.textContent = chapter.currentEditorArticle ? "This article" : (chapter.status === "draft" ? "Private" : "Public");
+      item.append(number, title, status);
+      list.append(item);
+    });
+    bookChapterListEl.append(list);
+  }
+
   function setStatus(node, text) {
     if (node) node.textContent = text || "";
   }
@@ -156,10 +260,10 @@
     if (unpublishButton) unpublishButton.hidden = activePostStatus !== "published";
     if (publishButton) {
       publishButton.hidden = false;
-      publishButton.textContent = activePostStatus === "published" ? "Update" : "Publish";
+      publishButton.textContent = activePostStatus === "published" ? "Update" : "Move to public";
       publishButton.setAttribute(
         "aria-label",
-        activePostStatus === "published" ? "Update published article" : "Publish article"
+        activePostStatus === "published" ? "Update published article" : "Move to public"
       );
     }
   }
@@ -210,6 +314,7 @@
   }
 
   function htmlImageTagToMarkdown(tag) {
+    if (/\bwidth=["']\d+["']/i.test(tag)) return tag;
     const src = /\bsrc=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
     if (!src) return tag;
     const alt = /\balt=(["'])(.*?)\1/i.exec(tag)?.[2] || "image";
@@ -242,6 +347,11 @@
     return kept.join("\n");
   }
 
+  function outsideFoldBlocks(markdown, transform) {
+    return String(markdown || '').split(/(^\$\$fold[ \t]*\n[\s\S]*?\n\$\$(?=\n|$))/gm)
+      .map((part, index) => index % 2 ? part : transform(part)).join('');
+  }
+
   function normalizeMathDelimitersForRichEditor(markdown) {
     const protectLineBreaks = (tex) => String(tex || "").replace(/\\{2}(?!\\)/g, (match) => match + match);
     return String(markdown || "")
@@ -251,14 +361,16 @@
   }
 
   function markdownForRichEditor(markdown) {
-    const withSpacerMarkers = String(markdown || "").replace(
-      /<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi,
-      (tag) => stableFlowImageMode ? "" : layoutSpacerTagToEditorMarkdown(tag)
-    );
-    const normalized = withSpacerMarkers.replace(/<img\b[^>]*>/gi, (tag) => htmlImageTagToMarkdown(tag));
-    return preserveVisualIndentation(normalizeMathDelimitersForRichEditor(
-      separateStandaloneHtmlBreaks(collapseAdjacentDuplicateImages(normalized))
-    ));
+    return outsideFoldBlocks(markdown, (prose) => {
+      const withSpacerMarkers = prose.replace(
+        /<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi,
+        (tag) => stableFlowImageMode ? "" : layoutSpacerTagToEditorMarkdown(tag)
+      );
+      const normalized = withSpacerMarkers.replace(/<img\b[^>]*>/gi, (tag) => htmlImageTagToMarkdown(tag));
+      return preserveVisualIndentation(normalizeMathDelimitersForRichEditor(
+        separateStandaloneHtmlBreaks(collapseAdjacentDuplicateImages(repairEscapedInlineCode(normalized)))
+      ));
+    });
   }
 
   function encodeIntentionalParagraphIndents(markdown) {
@@ -271,6 +383,55 @@
       }
       if (fenced) return line;
       return line.replace(/^\u3000{2}/, "&#12288;&#12288;");
+    }).join("\n");
+  }
+
+  function normalizeOverindentedFences(markdown) {
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const opening = /^([ \t]{4,})(`{3,}|~{3,})(.*)$/.exec(lines[index]);
+      if (!opening) {
+        output.push(lines[index]);
+        continue;
+      }
+      let closingIndex = -1;
+      let closing = null;
+      for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+        const candidate = /^([ \t]*)(`{3,}|~{3,})\s*$/.exec(lines[cursor]);
+        if (candidate && candidate[2][0] === opening[2][0]) {
+          closingIndex = cursor;
+          closing = candidate;
+          break;
+        }
+      }
+      if (closingIndex < 0 || closing[1].length >= opening[1].length) {
+        output.push(lines[index]);
+        continue;
+      }
+      output.push(`${opening[2]}${opening[3]}`);
+      for (let cursor = index + 1; cursor < closingIndex; cursor += 1) {
+        const line = lines[cursor];
+        output.push(line.startsWith(opening[1]) ? line.slice(opening[1].length) : line);
+      }
+      output.push(closing[2]);
+      index = closingIndex;
+    }
+    return output.join("\n");
+  }
+
+  function repairEscapedInlineCode(markdown) {
+    let fence = "";
+    return String(markdown || "").split("\n").map((line) => {
+      const marker = /^\s*(`{3,}|~{3,})/.exec(line);
+      if (marker) {
+        const type = marker[1][0];
+        if (!fence) fence = type;
+        else if (fence === type) fence = "";
+        return line;
+      }
+      if (fence) return line;
+      return line.replace(/\\`([^`\n]+?)\\`/g, (_match, code) => `\`${code}\``);
     }).join("\n");
   }
 
@@ -388,6 +549,91 @@
     return range.toString().replace(/\u00a0/g, " ");
   }
 
+  function plainWebUrl(value) {
+    const candidate = String(value || "").trim();
+    if (!/^https?:\/\/[^\s<>]+$/i.test(candidate)) return "";
+    try {
+      const parsed = new URL(candidate);
+      return parsed.protocol === "http:" || parsed.protocol === "https:" ? candidate : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function selectRichEditorTextBeforeCaret(length) {
+    if (!richEditor?.getSelection || !richEditor?.setSelection || length <= 0) return null;
+    try {
+      const selection = richEditor.getSelection();
+      if (!Array.isArray(selection) || selection.length < 2) return null;
+      const end = selection[1];
+      if (typeof end === "number") {
+        richEditor.setSelection(Math.max(0, end - length), end);
+        return end;
+      }
+      if (Array.isArray(end) && end.length >= 2 && typeof end[1] === "number" && end[1] >= length) {
+        richEditor.setSelection([end[0], end[1] - length], end);
+        return end;
+      }
+    } catch (_) {
+      // Leave the editor unchanged when this Toast UI build exposes another selection shape.
+    }
+    return null;
+  }
+
+  function insertEditorLink(linkUrl, linkText = linkUrl) {
+    if (!richEditor || !linkUrl) return false;
+    richEditor.exec("addLink", { linkUrl, linkText: linkText || linkUrl });
+    window.queueMicrotask(() => {
+      syncFromRichEditor();
+      scheduleEditorMathRender(16);
+    });
+    return true;
+  }
+
+  function convertPastedPlainUrl(event) {
+    if (event.defaultPrevented || activeContentFormat !== "markdown" || !richEditor) return false;
+    if (Array.from(event.clipboardData?.files || []).length) return false;
+    const linkUrl = plainWebUrl(event.clipboardData?.getData("text/plain"));
+    if (!linkUrl) return false;
+    const root = editorContentRoot();
+    const selection = window.getSelection();
+    if (!root || !selection?.rangeCount || !root.contains(selection.getRangeAt(0).commonAncestorContainer)) return false;
+    const target = event.target?.nodeType === Node.ELEMENT_NODE ? event.target : event.target?.parentElement;
+    if (target?.closest?.("pre, code")) return false;
+
+    const selectedText = selection.isCollapsed ? linkUrl : selection.toString().trim();
+    event.preventDefault();
+    event.stopPropagation();
+    insertEditorLink(linkUrl, selectedText || linkUrl);
+    return true;
+  }
+
+  function convertTypedPlainUrl(event) {
+    const isSpaceInput = (event.type === "beforeinput"
+      && event.inputType === "insertText"
+      && event.data === " ")
+      || (event.type === "keydown" && [" ", "Space", "Spacebar"].includes(event.key) && !event.repeat);
+    if (!isSpaceInput || event.isComposing || !richEditor) return false;
+    const selection = window.getSelection();
+    if (!selection?.isCollapsed || !selection.anchorNode) return false;
+    const element = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+      ? selection.anchorNode
+      : selection.anchorNode.parentElement;
+    if (!element?.closest(".ProseMirror") || element.closest("a, pre, code")) return false;
+    const block = element.closest("p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote");
+    if (!block) return false;
+    const beforeCaret = textBeforeEditorCaret(block, selection);
+    const linkUrl = plainWebUrl(/(?:^|[\s([{'"])(https?:\/\/[^\s<>()]+)$/i.exec(beforeCaret)?.[1]);
+    if (!linkUrl) return false;
+    const linkEnd = selectRichEditorTextBeforeCaret(linkUrl.length);
+    if (linkEnd === null) return false;
+    event.preventDefault();
+    insertEditorLink(linkUrl);
+    richEditor.setSelection(linkEnd, linkEnd);
+    richEditor.insertText(" ");
+    return true;
+  }
+
   function removeEditorShortcutMarker(block, selection) {
     const range = document.createRange();
     range.selectNodeContents(block);
@@ -397,7 +643,7 @@
     document.execCommand("delete", false);
   }
 
-  function convertTypedMarkdownList(event) {
+  function convertTypedMarkdownBlock(event) {
     const isSpaceInput = (event.type === "beforeinput" && event.inputType === "insertText" && event.data === " ")
       || (event.type === "keydown" && event.key === " " && !event.repeat);
     if (!isSpaceInput || event.isComposing || !richEditor) return false;
@@ -411,20 +657,13 @@
 
     const beforeCaret = textBeforeEditorCaret(block, selection);
     const inListItem = Boolean(block.closest("li"));
-    let command = "";
-    if (inListItem && /^\s*\[(?: |x|X)\]$/.test(beforeCaret)) {
-      command = "taskList";
-    } else if (!inListItem && /^\s{0,3}[-+*]$/.test(beforeCaret)) {
-      command = "bulletList";
-    } else if (!inListItem && /^\s{0,3}\d+[.)]$/.test(beforeCaret)) {
-      command = "orderedList";
-    }
-    if (!command) return false;
+    const shortcut = window.MichelMarkdownShortcuts?.match(beforeCaret, { inListItem });
+    if (!shortcut) return false;
 
     event.preventDefault();
     removeEditorShortcutMarker(block, selection);
     window.queueMicrotask(() => {
-      richEditor.exec(command);
+      richEditor.exec(shortcut.command, shortcut.payload);
       syncFromRichEditor();
       scheduleEditorMathRender(16);
     });
@@ -432,11 +671,15 @@
   }
 
   function handleRichEditorBeforeInput(event) {
-    if (convertTypedMarkdownList(event)) return;
+    if (openJerryComposerFromShortcut(event)) return;
+    if (convertTypedPlainUrl(event)) return;
+    if (convertTypedMarkdownBlock(event)) return;
     preserveTypedVisualWhitespace(event);
   }
 
   function handleRichEditorKeydown(event) {
+    if (openJerryComposerFromShortcut(event)) return;
+    if (convertTypedPlainUrl(event)) return;
     if (
       event.key === "Tab"
       && !event.shiftKey
@@ -456,7 +699,405 @@
       });
       return;
     }
-    convertTypedMarkdownList(event);
+    convertTypedMarkdownBlock(event);
+  }
+
+  let jerryBusy = false;
+  let jerryReply = null;
+  let jerryActive = false;
+  let jerryPanel = null;
+  let jerryAnchor = 1;
+  let jerryDocument = null;
+  let jerrySelection = "";
+  let jerryFindings = [];
+
+  function jerryCommandRanges(doc) {
+    const ranges = [];
+    let paragraphIndex = -1;
+    doc.descendants((node, pos) => {
+      if (node.type.name !== "paragraph") return;
+      paragraphIndex++;
+      const match = /(?:^|\s)@jerry(?:\s[\s\S]*)?$/i.exec(node.textContent);
+      if (!match) return;
+      const offset = node.textContent.toLowerCase().indexOf("@jerry", match.index);
+      ranges.push({ from: pos + 1 + offset, to: pos + 1 + node.content.size, text: node.textContent.slice(offset), paragraphIndex });
+    });
+    return ranges;
+  }
+
+  function restoreJerryCommand(command) {
+    if (!jerryActive || !command) return;
+    const view = richEditor?.wwEditor?.view;
+    if (!view || jerryCommandRanges(view.state.doc).length) return;
+    trackJerryPosition();
+    let position = null;
+    let paragraphIndex = -1;
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name !== "paragraph") return;
+      paragraphIndex++;
+      const candidate = pos + 1 + node.content.size;
+      if (paragraphIndex <= command.paragraphIndex) position = candidate;
+    });
+    if (position === null) return;
+    const prefix = view.state.doc.textBetween(Math.max(0, position - 1), position);
+    jerryAnchor = position;
+    view.dispatch(view.state.tr.insertText((prefix && !/\s/.test(prefix) ? " " : "") + command.text, position));
+    decorateJerryInstructions();
+  }
+
+  function locateJerryFinding(quote) {
+    const view = richEditor?.wwEditor?.view;
+    if (!view) return;
+    const matches = [];
+    view.state.doc.descendants((node, pos) => {
+      if (!node.isTextblock) return;
+      const index = node.textContent.indexOf(quote);
+      if (index >= 0) matches.push({ from: pos + 1 + index, to: pos + 1 + index + quote.length });
+    });
+    if (matches.length !== 1) { showJerryReply("该原文已变化或不唯一，请重新检查定位。"); return; }
+    const { from, to } = matches[0];
+    view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.create(view.state.doc, from, to)).scrollIntoView());
+    view.focus();
+  }
+  const jerrySessionKey = `michel-jerry-session:${new URLSearchParams(location.search).get("edit") || "draft"}`;
+  let jerryMessages = [];
+  try { jerryMessages = JSON.parse(sessionStorage.getItem(jerrySessionKey) || "[]").filter(m => ["user", "assistant"].includes(m.role) && typeof m.content === "string").slice(-40); } catch {}
+
+  function trackJerryPosition() {
+    const view = richEditor?.wwEditor?.view;
+    if (!view) return;
+    const doc = view.state.doc;
+    if (jerryDocument && jerryDocument !== doc && jerryActive) {
+      const start = jerryDocument.content.findDiffStart(doc.content);
+      const end = jerryDocument.content.findDiffEnd(doc.content);
+      if (start !== null && end && jerryAnchor > start) {
+        jerryAnchor = jerryAnchor >= end.a ? jerryAnchor + end.b - end.a : start;
+      }
+    }
+    jerryAnchor = Math.max(0, Math.min(doc.content.size, jerryAnchor));
+    jerryDocument = doc;
+  }
+
+  function jerryContext() {
+    trackJerryPosition();
+    const doc = richEditor?.wwEditor?.view?.state.doc;
+    if (!doc) return {};
+    const pos = doc.resolve(jerryAnchor);
+    const mentionsBefore = (doc.textBetween(0, jerryAnchor, "\n").match(/@jerry\b/gi) || []).length;
+    const markdownMentions = Array.from(getMarkdown({ includeJerry: true }).matchAll(/@jerry\b/gi));
+    const markdownPosition = markdownMentions[mentionsBefore]?.index ?? null;
+    return { position: jerryAnchor, markdownPosition, selectedText: jerrySelection,
+      paragraph: stripJerryInstructions(pos.parent.textContent),
+      before: stripJerryInstructions(doc.textBetween(Math.max(0, jerryAnchor - 1200), jerryAnchor, "\n")),
+      after: stripJerryInstructions(doc.textBetween(jerryAnchor, Math.min(doc.content.size, jerryAnchor + 1200), "\n")) };
+  }
+
+  function rememberJerry(role, content, findings = []) {
+    jerryMessages.push({ role, content: String(content).slice(0, 4000), findings });
+    jerryMessages = jerryMessages.slice(-40);
+    try { sessionStorage.setItem(jerrySessionKey, JSON.stringify(jerryMessages)); } catch {}
+    if (jerryPanel && !jerryPanel.hidden) renderJerrySession();
+  }
+
+  function renderJerrySession() {
+    if (!jerryPanel) {
+      jerryPanel = document.createElement("section");
+      jerryPanel.className = "jerry-session";
+      jerryPanel.setAttribute("aria-label", "Jerry 编辑会话");
+      document.body.append(jerryPanel);
+      new ResizeObserver(positionJerryReply).observe(jerryPanel);
+    }
+    jerryPanel.hidden = false;
+    const log = document.createElement("div");
+    log.className = "jerry-session-log";
+    log.setAttribute("role", "log");
+    log.setAttribute("aria-label", "对话记录");
+    for (const message of jerryMessages) {
+      const p = document.createElement("p");
+      p.className = `jerry-message-${message.role}`;
+      p.setAttribute("aria-label", message.role === "user" ? "你的消息" : "Jerry 的回复");
+      p.textContent = message.content;
+      log.append(p);
+    }
+    if (!jerryMessages.length) log.textContent = "我在，想聊什么？";
+    for (const finding of jerryMessages.slice().reverse().find(m => m.findings?.length)?.findings || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `定位：${finding.quote} → ${finding.suggestion}（${finding.reason}）`;
+      button.onclick = () => locateJerryFinding(finding.quote);
+      log.append(button);
+    }
+    const form = document.createElement("form");
+    const input = document.createElement("textarea");
+    input.setAttribute("aria-label", "继续与 Jerry 对话");
+    input.placeholder = jerryBusy ? "正在想…" : "说点什么…";
+    input.rows = 1;
+    input.title = "回车发送 · Esc 退出";
+    input.disabled = jerryBusy;
+    input.oninput = () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 96)}px`; };
+    form.onsubmit = event => {
+      event.preventDefault();
+      if (!input.value.trim() || jerryBusy) return;
+      submitInlineJerry(input.value.trim(), "");
+    };
+    input.onkeydown = event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+        event.preventDefault(); form.requestSubmit();
+      }
+    };
+    form.append(input);
+    jerryPanel.replaceChildren(log, form);
+    log.scrollTop = log.scrollHeight;
+    positionJerryReply();
+  }
+
+  document.addEventListener("selectionchange", () => {
+    const view = richEditor?.wwEditor?.view;
+    if (view?.hasFocus() && !view.state.selection.empty) {
+      const { from, to } = view.state.selection;
+      jerrySelection = view.state.doc.textBetween(from, to, "\n").slice(0, 2400);
+    }
+  });
+  document.addEventListener("click", event => {
+    if (!jerryActive || !event.target.closest?.("[data-assistant-launcher]")) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    if (jerryReply) jerryReply.hidden = true;
+    if (jerryPanel && !jerryPanel.hidden) jerryPanel.hidden = true;
+    else renderJerrySession();
+  }, true);
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !jerryActive) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const view = richEditor?.wwEditor?.view;
+    if (view) {
+      const commands = jerryCommandRanges(view.state.doc);
+      if (commands.length) {
+        let transaction = view.state.tr;
+        for (const command of commands.reverse()) transaction = transaction.delete(command.from, command.to);
+        view.dispatch(transaction);
+        syncFromRichEditor();
+      }
+      view.focus();
+    }
+    jerryActive = false;
+    jerrySelection = "";
+    CSS.highlights?.delete("jerry-instruction");
+    if (jerryPanel) jerryPanel.hidden = true;
+    if (jerryReply) jerryReply.hidden = true;
+  }, true);
+
+  function stripJerryInstructions(markdown) {
+    let fence = "";
+    return String(markdown || "").split("\n").map((line) => {
+      const marker = /^\s*(`{3,}|~{3,})/.exec(line);
+      if (marker) {
+        if (!fence) fence = marker[1][0];
+        else if (fence === marker[1][0]) fence = "";
+        return line;
+      }
+      return fence ? line : line.replace(/(^|\s)@jerry(?:\s.*)?$/i, "$1");
+    }).join("\n");
+  }
+
+  function decorateJerryInstructions() {
+    trackJerryPosition();
+    const view = richEditor?.wwEditor?.view;
+    if (view?.hasFocus()) {
+      const { $from } = view.state.selection;
+      const command = /(?:^|\s)@jerry(?:\s|$)/i.exec($from.parent.textContent);
+      if (command && $from.parent.type.name === "paragraph") {
+        jerryActive = true;
+        jerryAnchor = $from.start() + $from.parent.textContent.toLowerCase().indexOf("@jerry", command.index);
+      }
+    }
+    const root = editorContentRoot();
+    if (!root) return;
+    const ranges = [];
+    root.querySelectorAll("p").forEach((block) => {
+      if (block.closest("pre, code")) return;
+      const index = block.textContent.search(/(?:^|\s)@jerry(?:\s|$)/i);
+      if (index < 0) return;
+      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      let offset = 0;
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (offset + node.length > index) {
+          const range = document.createRange();
+          range.setStart(node, Math.max(0, index - offset));
+          range.setEnd(block, block.childNodes.length);
+          ranges.push(range);
+          break;
+        }
+        offset += node.length;
+      }
+    });
+    if (window.CSS?.highlights && window.Highlight) {
+      CSS.highlights.set("jerry-instruction", new Highlight(...ranges));
+    }
+  }
+
+  function applyJerryEdits(markdown, edits) {
+    let next = String(markdown || "");
+    for (const edit of Array.isArray(edits) ? edits : []) {
+      const find = String(edit?.find || "");
+      const positioned = Number.isInteger(edit?.start);
+      const first = positioned ? edit.start : next.indexOf(find);
+      if (!find || first < 0 || next.slice(first, first + find.length) !== find || (!positioned && next.indexOf(find, first + find.length) >= 0)) {
+        throw new Error("无法唯一定位原文，文章未修改。");
+      }
+      next = next.slice(0, first) + String(edit.replace ?? "") + next.slice(first + find.length);
+    }
+    return next;
+  }
+
+  function positionJerryReply() {
+    const pet = document.querySelector("[data-assistant-launcher]");
+    if (!pet) return;
+    const rect = pet.getBoundingClientRect();
+    for (const bubble of [jerryReply, jerryPanel]) {
+    if (!bubble || bubble.hidden) continue;
+    const width = bubble.offsetWidth;
+    const tipX = rect.left + rect.width * 0.48;
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, tipX - width + 44));
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${Math.max(12, rect.top - bubble.offsetHeight - 12)}px`;
+    bubble.style.setProperty("--jerry-tail-x", `${Math.max(20, Math.min(width - 20, tipX - left))}px`);
+    }
+  }
+
+  window.addEventListener("resize", positionJerryReply, { passive: true });
+  window.addEventListener("scroll", positionJerryReply, { passive: true, capture: true });
+
+  function showJerryReply(message) {
+    if (!jerryReply) {
+      jerryReply = document.createElement("div");
+      jerryReply.className = "jerry-speech-bubble";
+      jerryReply.setAttribute("role", "status");
+      jerryReply.setAttribute("aria-live", "polite");
+      document.body.appendChild(jerryReply);
+      new ResizeObserver(positionJerryReply).observe(jerryReply);
+    }
+    jerryReply.hidden = Boolean(jerryPanel && !jerryPanel.hidden);
+    const text = document.createElement("p");
+    text.textContent = message;
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "jerry-bubble-close";
+    close.setAttribute("aria-label", "关闭 Jerry 回复");
+    close.textContent = "×";
+    close.addEventListener("click", () => { jerryReply.hidden = true; });
+    jerryReply.replaceChildren(text, close);
+    positionJerryReply();
+  }
+
+  async function submitInlineJerry(instruction, nearbyText) {
+    if (jerryBusy) return;
+    const originalMarkdown = getMarkdown({ includeJerry: true });
+    const context = jerryContext();
+    const history = jerryMessages.slice(-20).map(m => ({ role: m.role, content: m.content + (m.findings?.length ? "\nFindings: " + JSON.stringify(m.findings) : "") }));
+    jerryBusy = true;
+    rememberJerry("user", instruction);
+    window.MichelAssistant?.setEditorBusy(true);
+    showJerryReply("正在处理…");
+    try {
+      const result = await api("/api/admin/jerry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction, nearbyText, context, history, markdown: originalMarkdown, title: fields.title.value })
+      });
+      const next = applyJerryEdits(originalMarkdown, result.edits);
+      const changed = next !== originalMarkdown;
+      if (changed) {
+        if (getMarkdown({ includeJerry: true }) !== originalMarkdown) throw new Error("正文已更新，请重新发送指令。");
+        setMarkdown(next);
+        saveLocalDraft({ quiet: true });
+        renderPreview();
+        scheduleAutosave();
+      }
+      jerryFindings = Array.isArray(result.findings) ? result.findings : [];
+      rememberJerry("assistant", result.reply || "完成。", jerryFindings);
+      if (jerryActive) showJerryReply(result.reply || "完成。", changed);
+    } catch (error) {
+      rememberJerry("assistant", error.message || "暂时无法处理，请重试。");
+      if (jerryActive) showJerryReply(error.message || "暂时无法处理，请重试。");
+    } finally {
+      jerryBusy = false;
+      window.MichelAssistant?.setEditorBusy(false);
+      if (jerryPanel && !jerryPanel.hidden) renderJerrySession();
+    }
+  }
+
+  function openJerryComposerFromShortcut(event) {
+    if (event.type !== "keydown" || event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return false;
+    const view = richEditor?.wwEditor?.view;
+    if (!view || !view.hasFocus()) return false;
+    const { $from, empty } = view.state.selection;
+    if (!empty || $from.parent.type.name !== "paragraph") return false;
+    const text = $from.parent.textContent;
+    const match = /(?:^|\s)@jerry(?:\s+([\s\S]*))?$/i.exec(text);
+    if (!match) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (jerryBusy) { showJerryReply("正在处理上一条指令。"); return true; }
+    const commandStart = text.toLowerCase().indexOf("@jerry", match.index);
+    jerryActive = true;
+    jerryAnchor = $from.start() + commandStart;
+    const instruction = (match[1] || "").trim();
+    if (!instruction) return true;
+    const block = view.domAtPos($from.start()).node;
+    const element = block.nodeType === Node.ELEMENT_NODE ? block : block.parentElement;
+    const nearbyText = [text.slice(0, commandStart), element?.previousElementSibling?.textContent, element?.nextElementSibling?.textContent].filter(Boolean).join("\n").slice(0,1600);
+    view.dispatch(view.state.tr.insertText("@jerry ", $from.start() + commandStart, $from.end()));
+    syncFromRichEditor();
+    decorateJerryInstructions();
+    submitInlineJerry(instruction, nearbyText);
+    return true;
+  }
+
+  const linkTitleCache = new Map();
+  let linkTitleTimer = 0;
+
+  function scheduleLinkTitles() {
+    clearTimeout(linkTitleTimer);
+    linkTitleTimer = setTimeout(enrichEditorLinkTitles, 700);
+  }
+
+  async function enrichEditorLinkTitles() {
+    const view = richEditor?.wwEditor?.view;
+    if (!view || richEditor.isMarkdownMode?.()) return;
+    const urls = new Set();
+    view.state.doc.descendants((node) => {
+      const mark = node.marks?.find((item) => item.type.name === "link");
+      if (node.isText && mark && node.text === mark.attrs.linkUrl && /^https:\/\//i.test(node.text)) urls.add(node.text);
+    });
+    for (const url of urls) {
+      if (linkTitleCache.has(url)) continue;
+      linkTitleCache.set(url, null);
+      try {
+        const result = await api("/api/admin/link-title", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url })
+        });
+        const title = String(result.title || "").trim();
+        linkTitleCache.set(url, title);
+        if (!title || title === url) continue;
+        const currentView = richEditor?.wwEditor?.view;
+        if (!currentView) continue;
+        const replacements = [];
+        currentView.state.doc.descendants((node, pos) => {
+          const mark = node.marks?.find((item) => item.type.name === "link");
+          if (node.isText && node.text === url && mark?.attrs.linkUrl === url) replacements.push({ pos, size: node.nodeSize, marks: node.marks });
+        });
+        if (!replacements.length) continue;
+        const tr = currentView.state.tr;
+        replacements.reverse().forEach(({pos,size,marks}) => {
+          tr.replaceWith(pos, pos + size, currentView.state.schema.text(title, marks));
+        });
+        currentView.dispatch(tr);
+        syncFromRichEditor();
+      } catch (_) {
+        // Keep the original clickable URL when metadata is unavailable.
+      }
+    }
   }
 
   function imageMarkupForStorage(src, alt, widthValue, align, xValue, yValue, reserveValue = 0, layerValue = defaultImageLayer) {
@@ -468,6 +1109,7 @@
   }
 
   function imageHtmlTagForStorage(tag) {
+    if (/\bwidth=["']\d+["']/i.test(tag)) return tag;
     const src = /\bsrc=(["'])(.*?)\1/i.exec(tag)?.[2] || "";
     if (!src) return tag;
     const alt = /\balt=(["'])(.*?)\1/i.exec(tag)?.[2] || "image";
@@ -485,11 +1127,13 @@
   }
 
   function normalizeImageMarkupForStorage(markdown) {
+    return outsideFoldBlocks(markdown, (prose) => {
     const withoutSpacers = stableFlowImageMode
-      ? String(markdown || "").replace(/<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi, "")
-      : normalizeLayoutSpacersForStorage(markdown);
+      ? prose.replace(/<div\b[^>]*data-writer-spacer=(["'])(.*?)\1[^>]*>\s*<\/div>/gi, "")
+      : normalizeLayoutSpacersForStorage(prose);
     const normalized = String(withoutSpacers || "").replace(/<img\b[^>]*>/gi, (tag) => imageHtmlTagForStorage(tag));
     return collapseAdjacentDuplicateImages(normalized);
+    });
   }
 
   function cleanExcerptText(value) {
@@ -519,7 +1163,6 @@
       if (draftInbox) draftInbox.hidden = false;
       document.body.classList.add("is-authenticated", "is-draft-inbox");
       if (writerModeEl) writerModeEl.textContent = "Drafts";
-      if (logoutButton) logoutButton.hidden = false;
       setStatus(saveStatus, "");
       loadDrafts({ quiet: true });
       return;
@@ -529,7 +1172,6 @@
     document.body.classList.add("is-authenticated");
     document.body.classList.remove("is-draft-inbox");
     if (writerModeEl) writerModeEl.textContent = "Editing";
-    if (logoutButton) logoutButton.hidden = false;
     setSidebarOpen(true);
     if (window.matchMedia("(max-width: 820px)").matches) {
       setMobileView(workbench.dataset.mobileView || "write", { focus: false });
@@ -539,6 +1181,7 @@
     if (!fields.date.value) fields.date.value = today();
     syncPostActions();
     ensureRichEditor();
+    loadDrafts({ quiet: true });
     if (editSlug) {
       loadPostForEditing(editSlug);
     } else if (!createBlankPost) {
@@ -561,7 +1204,6 @@
     if (draftInbox) draftInbox.hidden = true;
     workbench.hidden = true;
     document.body.classList.remove("is-authenticated", "is-draft-inbox");
-    if (logoutButton) logoutButton.hidden = true;
     setStatus(saveStatus, "Locked");
   }
 
@@ -650,7 +1292,7 @@
     if (richEditorEl) richEditorEl.inert = isMirror;
     if (htmlVisualEditor) htmlVisualEditor.inert = isMirror;
     if (generateSummaryButton) generateSummaryButton.disabled = isMirror;
-    [undoButton, unpublishButton, publishButton, deletePostButton]
+    [unpublishButton, publishButton, deletePostButton]
       .filter(Boolean)
       .forEach((button) => { button.disabled = isMirror; });
     if (message) setStatus(saveStatus, message);
@@ -778,7 +1420,7 @@
     );
   }
 
-  function readRichEditorMarkdown() {
+  function readRichEditorMarkdown(includeJerry = false) {
     if (richEditor) {
       let markdown = "";
       try {
@@ -786,16 +1428,19 @@
       } catch (_) {
         markdown = "";
       }
-      if (markdown.trim() || !editorHasRenderedContent()) return markdownForRichEditor(markdown);
+      if (markdown.trim() || !editorHasRenderedContent()) {
+        const normalized = markdownForRichEditor(markdown);
+        return includeJerry ? normalized : stripJerryInstructions(normalized);
+      }
       return markdownForRichEditor(fields.markdown.value || lastKnownMarkdown || markdown);
     }
     return fields.markdown.value || "";
   }
 
-  function getMarkdown() {
+  function getMarkdown(options = {}) {
     if (activeContentFormat === "html") return fields.markdown.value || lastKnownMarkdown || "";
-    if (stableFlowImageMode) return normalizeImageMarkupForStorage(readRichEditorMarkdown());
-    return normalizeLayoutSpacersForStorage(applyRememberedImageStyles(readRichEditorMarkdown()));
+    if (stableFlowImageMode) return normalizeImageMarkupForStorage(readRichEditorMarkdown(options.includeJerry));
+    return normalizeLayoutSpacersForStorage(applyRememberedImageStyles(readRichEditorMarkdown(options.includeJerry)));
   }
 
   function htmlEditorDocument() {
@@ -1010,6 +1655,7 @@
   };
 
   function setMarkdown(value, options = {}) {
+    const jerryCommand = jerryActive && richEditor?.wwEditor?.view ? jerryCommandRanges(richEditor.wwEditor.view.state.doc)[0] : null;
     const caret = options.preserveCaret ? captureEditorCaret() : null;
     const markdown = trimTrailingEmptyContent(value);
     if (activeContentFormat === "html") {
@@ -1026,7 +1672,9 @@
     if (richEditor && richEditor.getMarkdown() !== editorMarkdown) {
       syncingEditor = true;
       richEditor.setMarkdown(editorMarkdown, false);
+      restoreJerryCommand(jerryCommand);
       syncingEditor = false;
+      scheduleLinkTitles();
       window.setTimeout(() => {
         capturePlacedImageNodes();
         schedulePlacedImageRestore();
@@ -1064,10 +1712,10 @@
         fold: window.MichelFoldBlocks.toastRenderer
       } : undefined,
       toolbarItems: [
-        ["heading", "bold", "italic", "strike"],
-        ["hr", "quote"],
-        ["ul", "ol", "task"],
-        ["table", "image", "link"],
+        ["heading", "bold", "italic"],
+        ["quote"],
+        ["ul", "ol"],
+        ["image", "link"],
         ["code", "codeblock"]
       ],
       hooks: {
@@ -1083,12 +1731,22 @@
         }
       }
     });
+    window.MichelFoldBlocks?.attachEditor(richEditorEl, richEditor, {
+      addImageBlobHook: (blob, callback) => {
+        uploadImageFile(blob).then(result => callback(result.url, result.alt || "image"))
+          .catch(error => setStatus(saveStatus, error.message));
+        return false;
+      }
+    });
     richEditor.on("change", () => {
       if (syncingEditor) return;
       syncFromRichEditor();
       window.setTimeout(decorateEditorAnnotations, 30);
+      window.setTimeout(decorateJerryInstructions, 0);
+      scheduleLinkTitles();
     });
     richEditorEl.addEventListener("beforeinput", handleRichEditorBeforeInput, true);
+    richEditorEl.addEventListener("paste", convertPastedPlainUrl, true);
     richEditorEl.addEventListener("keydown", handleRichEditorKeydown, true);
     richEditorEl.addEventListener("pointerdown", handleEditableMathPointer, true);
     richEditorEl.addEventListener("mousedown", handleEditableMathPointer, true);
@@ -1147,8 +1805,13 @@
 
   function installAnnotationToolbarButton() {
     if (!richEditorEl || richEditorEl.querySelector("[data-annotation-tool]")) return;
-    const groups = Array.from(richEditorEl.querySelectorAll(".toastui-editor-toolbar-group"));
-    const group = groups.filter((candidate) => candidate.style.display !== "none").at(-1);
+    const toolbar = richEditorEl.querySelector(".toastui-editor-defaultUI-toolbar");
+    const topGroups = Array.from(toolbar?.querySelectorAll(":scope > .toastui-editor-toolbar-group") || []);
+    const moreButton = toolbar?.querySelector(":scope > .toastui-editor-toolbar-group button.more");
+    const compact = Boolean(moreButton?.getClientRects().length);
+    const group = compact
+      ? toolbar?.querySelector(".toastui-editor-dropdown-toolbar .toastui-editor-toolbar-group:last-child")
+      : topGroups.filter(candidate => candidate.style.display !== "none" && !candidate.querySelector("button.more")).at(-1);
     if (!group) {
       window.setTimeout(installAnnotationToolbarButton, 120);
       return;
@@ -1157,9 +1820,9 @@
     button.type = "button";
     button.className = "annotation-toolbar-button";
     button.dataset.annotationTool = "";
-    button.title = "Add or edit hover annotation";
-    button.setAttribute("aria-label", "Add or edit hover annotation");
-    button.textContent = "※";
+    button.title = "添加或编辑批注";
+    button.setAttribute("aria-label", "添加或编辑批注");
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.75h14v9.5H11l-4.5 3v-3H5z"/><path d="M9 10h6M9 13h4"/></svg>';
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", () => openAnnotationDialog());
     group.appendChild(button);
@@ -1449,11 +2112,11 @@
   }
 
   function normalizeMathShortcutsInMarkdown(markdown) {
-    return String(markdown || "")
+    return outsideFoldBlocks(markdown, (prose) => prose
       .replace(/\$\$([\s\S]+?)\$\$/g, (_match, tex) => `$$${normalizeMathTexShortcuts(tex)}$$`)
       .replace(/\\\[([\s\S]+?)\\\]/g, (_match, tex) => `\\[${normalizeMathTexShortcuts(tex)}\\]`)
       .replace(/(^|[^\\$])\$([^$\n]+?)\$/g, (_match, prefix, tex) => `${prefix}$${normalizeMathTexShortcuts(tex)}$`)
-      .replace(/\\\(([\s\S]+?)\\\)/g, (_match, tex) => `\\(${normalizeMathTexShortcuts(tex)}\\)`);
+      .replace(/\\\(([\s\S]+?)\\\)/g, (_match, tex) => `\\(${normalizeMathTexShortcuts(tex)}\\)`));
   }
 
   function ensureMathOverlayLayer() {
@@ -1955,7 +2618,7 @@
       breaks: true
     });
     const normalizedMarkdown = normalizeMathShortcutsInMarkdown(
-      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(markdown))))
+      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(normalizeOverindentedFences(markdown)))))
     );
     const rawHtml = md.render(window.MichelFoldBlocks ? window.MichelFoldBlocks.expand(normalizedMarkdown, md) : normalizedMarkdown);
     fields.preview.innerHTML = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
@@ -1968,7 +2631,9 @@
         throwOnError: false
       });
     }
-    if (window.hljs) {
+    if (window.MichelCodeHighlight) {
+      window.MichelCodeHighlight.highlightAll(fields.preview);
+    } else if (window.hljs) {
       fields.preview.querySelectorAll("pre code").forEach((block) => window.hljs.highlightElement(block));
     }
     enhanceTaskLists(fields.preview);
@@ -2075,6 +2740,9 @@
       category: fields.category.value.trim(),
       date: fields.date.value,
       tags: fields.tags.value.trim(),
+      bookTitle: fields.bookTitle.value.trim(),
+      bookSlug: fields.bookSlug.value.trim(),
+      chapterOrder: fields.chapterOrder.value,
       excerpt: cleanExcerptText(fields.excerpt.value),
       excerptMode,
       contentFormat: activeContentFormat,
@@ -2185,6 +2853,9 @@
       category: draft.category || "",
       date: draft.date || "",
       tags: draft.tags || "",
+      bookTitle: draft.bookTitle || "",
+      bookSlug: draft.bookSlug || "",
+      chapterOrder: draft.chapterOrder || "",
       excerpt: draft.excerpt || "",
       excerptMode: draft.excerptMode || "auto",
       contentFormat: draft.contentFormat || "markdown",
@@ -2278,7 +2949,10 @@
       const result = await api("/api/admin/posts?status=draft");
       draftList = Array.isArray(result.posts) ? result.posts : [];
       const publishedBackup = parseDraft(window.localStorage.getItem(publishedBackupKey));
-      if (publishedBackup) clearPublishedDraftCache(publishedBackup);
+      if (publishedBackup) {
+        clearPublishedDraftCache(publishedBackup);
+        window.localStorage.removeItem(publishedBackupKey);
+      }
       const cachedActiveId = openDraftInbox
         ? window.sessionStorage.getItem(draftActiveKey) || window.localStorage.getItem(draftActiveKey) || ""
         : activeDraftId;
@@ -2299,6 +2973,7 @@
       }
       renderDraftList();
       renderDraftInboxList();
+      renderBookChapterPlanner();
       if (!options.quiet) setStatus(saveStatus, `Loaded ${draftList.length} drafts`);
     } catch (error) {
       if (!options.quiet) setStatus(saveStatus, error.message);
@@ -2306,11 +2981,14 @@
   }
 
   function scheduleAutosave() {
-    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress || activePostStatus === "published") return;
+    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress) return;
+    const now = Date.now();
+    if (!autosaveBurstStartedAt) autosaveBurstStartedAt = now;
+    const delay = Math.min(1200, Math.max(0, 10_000 - (now - autosaveBurstStartedAt)));
     window.clearTimeout(autosaveTimer);
     autosaveTimer = window.setTimeout(() => {
       autosaveDraft({ quiet: true }).catch((error) => setStatus(saveStatus, error.message));
-    }, 1200);
+    }, delay);
   }
 
   function waitForAutosaveIdle() {
@@ -2329,7 +3007,7 @@
 
   async function autosaveDraft(options = {}) {
     const { quiet = true, force = false, summarize = false, annotate = false } = options;
-    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress || activePostStatus === "published") return null;
+    if (!csrfToken || !activeLeaseHeld || workbench.hidden || deleteInProgress || publishInProgress) return null;
     if (!force && !hasDraftContent()) return null;
     window.clearTimeout(autosaveTimer);
     if (autosaveInFlight) {
@@ -2341,56 +3019,60 @@
       return null;
     }
     const current = readDraft();
-    const signature = draftSignature(current, "draft");
+    const autosaveStatus = activePostStatus === "published" ? "published" : "draft";
+    const signature = draftSignature(current, autosaveStatus);
     if (!force && signature === lastSavedSignature) return null;
 
+    autosaveBurstStartedAt = 0;
     autosaveInFlight = true;
     if (!quiet) setStatus(saveStatus, "Saving draft...");
     try {
-      const result = await api("/api/admin/posts", {
+      const isPublishedWorkingCopy = activePostStatus === "published";
+      const result = await api(isPublishedWorkingCopy ? "/api/admin/working-copy" : "/api/admin/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...current,
           draftId: current.draftId || ensureDraftId(),
           slug: current.slug || (!fields.slug.dataset.touched && current.title ? slugify(current.title) : activeDraftSlug || current.draftId || ""),
-          status: "draft",
+          status: isPublishedWorkingCopy ? "published" : "draft",
           clientId: writerClientId,
           baseRevision: activeRevision,
           summarize,
           annotate
         })
       });
-      if (result.slug) {
-        activeDraftSlug = result.slug;
+      const saved = result.workingCopy || result;
+      if (saved.slug) {
+        activeDraftSlug = saved.slug;
         if (!fields.slug.value.trim() && current.title.trim()) {
-          fields.slug.value = result.slug;
+          fields.slug.value = saved.slug;
           fields.slug.dataset.touched = "1";
         }
       }
-      activeRevision = Math.max(0, Number(result.revision || activeRevision));
-      if (result.excerptMode) setExcerptMode(result.excerptMode);
-      if (typeof result.excerpt === "string") fields.excerpt.value = result.excerpt;
+      activeRevision = Math.max(0, Number(saved.revision ?? saved.baseRevision ?? activeRevision));
+      if (saved.excerptMode) setExcerptMode(saved.excerptMode);
+      if (typeof saved.excerpt === "string") fields.excerpt.value = saved.excerpt;
       const currentMarkdown = getMarkdown();
       const serverMayRewriteMarkdown = summarize || annotate;
       if (
         serverMayRewriteMarkdown
-        && typeof result.markdown === "string"
-        && !markdownEquivalentForEditor(result.markdown, currentMarkdown)
+        && typeof saved.markdown === "string"
+        && !markdownEquivalentForEditor(saved.markdown, currentMarkdown)
       ) {
-        setMarkdown(result.markdown, { preserveCaret: true });
+        setMarkdown(saved.markdown, { preserveCaret: true });
         renderPreview();
         window.setTimeout(decorateEditorAnnotations, 40);
       }
-      lastSavedSignature = draftSignature(readDraft(), "draft");
+      lastSavedSignature = draftSignature(readDraft(), autosaveStatus);
       saveLocalDraft({ quiet: true, pending: false });
       await writeIndexedDraft({ ...readDraft(), savedAt: new Date().toISOString() }, {
         pending: false,
         revision: activeRevision
       });
-      await loadDrafts({ quiet: true });
-      setStatus(saveStatus, `${quiet ? "Autosaved" : "Draft saved"} ${clockTime()}${result.slug ? ` · ${result.slug}` : ""}`);
-      return result;
+      if (!isPublishedWorkingCopy) await loadDrafts({ quiet: true });
+      setStatus(saveStatus, `${isPublishedWorkingCopy ? "Working copy synced" : (quiet ? "Autosaved" : "Draft saved")} ${clockTime()}${saved.slug ? ` · ${saved.slug}` : ""}`);
+      return saved;
     } catch (error) {
       if (error.status === 409 && error.payload?.post) {
         setMirrorMode(true, "Conflict prevented · showing the server version");
@@ -2422,6 +3104,34 @@
   function draftTime(draft) {
     const time = Date.parse(draft?.savedAt || "");
     return Number.isFinite(time) ? time : 0;
+  }
+
+  async function newestCachedDraftForPost(post) {
+    const identities = Array.from(new Set([
+      post?.draftId,
+      post?.slug,
+      post?.originalSlug
+    ].map((value) => String(value || "").trim()).filter(Boolean)));
+    const candidates = [];
+    try {
+      [window.localStorage, window.sessionStorage].forEach((storage) => {
+        candidates.push(parseDraft(storage.getItem(draftKey)));
+        candidates.push(parseDraft(storage.getItem(draftSessionKey)));
+        identities.forEach((identity) => candidates.push(parseDraft(storage.getItem(draftSlotKey(identity)))));
+      });
+    } catch (_) {
+      // IndexedDB remains available when Web Storage cannot be read.
+    }
+    const indexed = await Promise.all(identities.map((identity) => readIndexedDraft(identity).catch(() => null)));
+    candidates.push(...indexed);
+    const candidate = candidates
+      .filter((draft) => draft && hasDraftContent(draft) && draftsShareIdentity(draft, post))
+      .sort((left, right) => draftTime(right) - draftTime(left))[0];
+    if (!candidate) return null;
+    const serverTime = Date.parse(post?.workingCopySavedAt || post?.updatedAt || "") || 0;
+    if (draftTime(candidate) <= serverTime) return null;
+    if (markdownEquivalentForEditor(candidate.markdown || "", post?.markdown || "")) return null;
+    return candidate;
   }
 
   async function restoreDraft() {
@@ -2493,6 +3203,11 @@
     fields.category.value = post.category || "Notes";
     fields.date.value = toDateInput(post.date);
     fields.tags.value = Array.isArray(post.tags) ? post.tags.join(", ") : String(post.tags || "");
+    fields.bookTitle.value = post.bookTitle || "";
+    fields.bookSlug.value = post.bookSlug || "";
+    fields.bookSlug.dataset.touched = post.bookSlug ? "1" : "";
+    fields.chapterOrder.dataset.requestedPosition = Number(post.chapterOrder) > 0 ? String(Math.floor(Number(post.chapterOrder))) : "";
+    renderBookChapterPlanner();
     fields.excerpt.value = cleanExcerptText(post.excerpt || "");
     setExcerptMode(post.excerptMode || (post.excerpt ? "manual" : "auto"));
     setMarkdown(post.markdown || "");
@@ -2508,15 +3223,108 @@
     setStatus(saveStatus, "Loading post...");
     try {
       const result = await api(`/api/admin/posts/${encodeURIComponent(slug)}`);
-      setDraftFields(result.post || {});
+      const serverPost = result.post || {};
+      const cachedPost = await newestCachedDraftForPost(serverPost);
+      setDraftFields(cachedPost ? {
+        ...serverPost,
+        ...cachedPost,
+        status: serverPost.status,
+        revision: Math.max(0, Number(serverPost.revision || 0))
+      } : serverPost);
       saveLocalDraft({ quiet: true, broadcast: false, pending: false });
       await acquireDraftLease();
-      setStatus(saveStatus, result.post?.importedFromLegacy
-        ? `Imported legacy Markdown: ${result.post?.slug || slug}`
-        : `Editing: ${result.post?.slug || slug}`);
+      if (cachedPost) {
+        setStatus(saveStatus, "Recovered newer browser copy · syncing...");
+        autosaveDraft({ quiet: true, force: true }).catch((error) => {
+          setStatus(saveStatus, `Browser recovery kept locally · ${error.message}`);
+        });
+      } else {
+        setStatus(saveStatus, serverPost.importedFromLegacy
+          ? `Imported legacy Markdown: ${serverPost.slug || slug}`
+          : serverPost.workingCopySavedAt
+            ? `Recovered synced working copy: ${serverPost.slug || slug}`
+            : `Editing: ${serverPost.slug || slug}`);
+      }
       window.requestAnimationFrame(() => fields.title.focus({ preventScroll: true }));
     } catch (error) {
       setStatus(saveStatus, error.message);
+    }
+  }
+
+  function formatVersionTime(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value || "Unknown time") : date.toLocaleString();
+  }
+
+  async function restoreEditorVersion(identity, revisionId) {
+    const result = await api(`/api/admin/revisions/${encodeURIComponent(identity)}?revision=${encodeURIComponent(revisionId)}`);
+    const snapshot = result.snapshot || {};
+    const current = readDraft();
+    const preserved = {
+      draftId: activeDraftId,
+      slug: activeDraftSlug,
+      originalSlug: activeOriginalSlug,
+      status: activePostStatus,
+      revision: activeRevision
+    };
+    setDraftFields({
+      ...current,
+      title: snapshot.title,
+      category: snapshot.category,
+      date: snapshot.date,
+      tags: snapshot.tags,
+      excerpt: snapshot.excerpt,
+      excerptMode: snapshot.excerptMode,
+      contentFormat: snapshot.contentFormat,
+      markdown: snapshot.markdown,
+      ...preserved
+    });
+    lastSavedSignature = "";
+    saveLocalDraft({ quiet: true, pending: true });
+    await autosaveDraft({ quiet: false, force: true });
+    versionDialog?.close();
+    fields.title?.focus({ preventScroll: true });
+  }
+
+  async function openVersionHistory() {
+    const identity = activeDraftId || activeDraftSlug;
+    if (!identity || !versionDialog || !versionListEl) return;
+    versionListEl.textContent = "Loading versions…";
+    versionDialog.showModal();
+    try {
+      const result = await api(`/api/admin/revisions/${encodeURIComponent(identity)}?limit=200`);
+      const revisions = Array.isArray(result.revisions) ? result.revisions : [];
+      if (!revisions.length) {
+        versionListEl.textContent = "No earlier versions yet.";
+        return;
+      }
+      versionListEl.replaceChildren(...revisions.map((revision) => {
+        const row = document.createElement("div");
+        row.className = "version-dialog-item";
+        const copy = document.createElement("div");
+        const time = document.createElement("p");
+        time.textContent = formatVersionTime(revision.savedAt);
+        const detail = document.createElement("small");
+        detail.textContent = `${Number(revision.characters || 0).toLocaleString()} characters`;
+        copy.append(time, detail);
+        const restore = document.createElement("button");
+        restore.type = "button";
+        restore.className = "admin-button";
+        restore.textContent = "Restore";
+        restore.addEventListener("click", async () => {
+          restore.disabled = true;
+          try {
+            await restoreEditorVersion(identity, revision.id);
+          } catch (error) {
+            restore.disabled = false;
+            setStatus(saveStatus, error.message);
+          }
+        });
+        row.append(copy, restore);
+        return row;
+      }));
+    } catch (error) {
+      versionListEl.textContent = error.message;
     }
   }
 
@@ -2533,6 +3341,7 @@
   fields.title.addEventListener("input", () => {
     resizeTitleField();
     if (!fields.slug.dataset.touched) fields.slug.value = slugify(fields.title.value);
+    renderBookChapterPlanner();
     saveLocalDraft({ quiet: true });
     scheduleAutosave();
   });
@@ -2542,8 +3351,15 @@
     saveLocalDraft({ quiet: true });
     scheduleAutosave();
   });
-  [fields.category, fields.date, fields.tags].forEach((field) => {
+  [fields.category, fields.date, fields.tags, fields.bookTitle, fields.bookSlug, fields.chapterOrder].forEach((field) => {
     field.addEventListener("input", () => {
+      if (field === fields.bookTitle && !fields.bookSlug.dataset.touched) {
+        fields.bookSlug.value = slugify(fields.bookTitle.value);
+      }
+      if (field === fields.bookSlug) fields.bookSlug.dataset.touched = "1";
+      if (field === fields.bookTitle || field === fields.bookSlug || field === fields.chapterOrder) {
+        renderBookChapterPlanner();
+      }
       saveLocalDraft({ quiet: true });
       scheduleAutosave();
     });
@@ -2663,19 +3479,6 @@
     }
   });
 
-  logoutButton?.addEventListener("click", async () => {
-    releaseDraftLease();
-    try {
-      await api("/api/admin/logout", { method: "POST" });
-    } catch (_) {
-      // Session may already be gone.
-    }
-    csrfToken = "";
-    draftEventSource?.close();
-    draftEventSource = null;
-    showLogin();
-  });
-
   async function switchDraft(identity) {
     if (!identity || identity === activeDraftId || identity === activeDraftSlug) return;
     try {
@@ -2718,6 +3521,11 @@
     fields.category.value = "Notes";
     fields.date.value = today();
     fields.tags.value = "";
+    fields.bookTitle.value = "";
+    fields.bookSlug.value = "";
+    fields.bookSlug.dataset.touched = "";
+    fields.chapterOrder.value = "";
+    renderBookChapterPlanner();
     fields.excerpt.value = "";
     setExcerptMode("auto");
     setMarkdown("");
@@ -2837,30 +3645,6 @@
     }
   }
 
-  function undoLastChange() {
-    if (workbench.hidden) return;
-    try {
-      if (activeContentFormat === "html") {
-        htmlEditorDocument()?.execCommand("undo");
-      } else if (richEditor && typeof richEditor.exec === "function") {
-        richEditor.exec("undo");
-      } else {
-        document.execCommand("undo");
-      }
-    } catch (_) {
-      document.execCommand("undo");
-    }
-    window.setTimeout(() => {
-      if (activeContentFormat === "html") syncHtmlEditorFromVisual();
-      else if (richEditor) syncFromRichEditor();
-      else {
-        saveLocalDraft({ quiet: true });
-        renderPreview();
-        scheduleAutosave();
-      }
-    }, 30);
-  }
-
   async function saveDraft() {
     normalizeExcerptField();
     saveLocalDraft();
@@ -2874,7 +3658,7 @@
   async function publishPost() {
     if (publishInProgress) return;
     publishInProgress = true;
-    const publishLabel = activePostStatus === "published" ? "Update" : "Publish";
+    const publishLabel = activePostStatus === "published" ? "Update" : "Move to public";
     if (publishButton) {
       publishButton.disabled = true;
       publishButton.setAttribute("aria-busy", "true");
@@ -2948,7 +3732,7 @@
 
   function confirmUnpublish() {
     if (!unpublishDialog || typeof unpublishDialog.showModal !== "function") {
-      return Promise.resolve(window.confirm("Move this article back to drafts? It will disappear from the public blog."));
+      return Promise.resolve(window.confirm("Move this article to private? It will disappear from the public blog."));
     }
     unpublishDialog.returnValue = "";
     return new Promise((resolve) => {
@@ -2961,7 +3745,7 @@
     if (unpublishInProgress || activePostStatus !== "published") return;
     if (!(await confirmUnpublish())) return;
     unpublishInProgress = true;
-    const originalLabel = unpublishButton?.textContent || "Move to drafts";
+    const originalLabel = unpublishButton?.textContent || "Move to private";
     if (unpublishButton) {
       unpublishButton.disabled = true;
       unpublishButton.setAttribute("aria-busy", "true");
@@ -2970,7 +3754,7 @@
     window.clearTimeout(autosaveTimer);
     autosaveQueued = false;
     normalizeExcerptField();
-    setStatus(saveStatus, "Moving article to drafts...");
+    setStatus(saveStatus, "Moving article to private...");
     try {
       await waitForAutosaveIdle();
       const result = await api("/api/admin/posts", {
@@ -3005,12 +3789,12 @@
     }
   }
 
-  undoButton?.addEventListener("click", undoLastChange);
   unpublishButton?.addEventListener("click", unpublishPost);
   deletePostButton?.addEventListener("click", () => requestDeletePost());
   newDraftButton?.addEventListener("click", newDraft);
   refreshDraftsButton?.addEventListener("click", () => loadDrafts({ quiet: false }));
   document.querySelector("[data-save-draft]")?.addEventListener("click", saveDraft);
+  versionsButton?.addEventListener("click", openVersionHistory);
   publishButton?.addEventListener("click", publishPost);
 
   function insertMarkdown(text) {

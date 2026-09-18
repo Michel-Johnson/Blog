@@ -1,7 +1,9 @@
-# Sketch Blog Frontend
+# Blog application
 
-This directory contains the custom Sketch frontend, article reader, private
-writer, and the server-side proxy used by `micheljohnson.top`.
+This directory contains the frontend, article reader, private writer, and
+Node.js backend currently used by `micheljohnson.top`. `admin-server.mjs` is
+the backend entry point; its server-side modules live in `lib/`. The HTML,
+CSS, browser JavaScript, fonts, and `assets/` are the deployed frontend.
 
 ## Ownership boundary
 
@@ -9,11 +11,12 @@ writer, and the server-side proxy used by `micheljohnson.top`.
 - `source/`: Hexo-owned Markdown articles (repository root)
 - Hexo output must never be deployed over the frontend directory.
 
-Production currently keeps the same boundary:
+Production keeps the same boundary:
 
 ```text
-/home/www/frontend  -> Sketch frontend and admin service
-/home/www/website   -> Hexo-generated article pages
+/opt/michel-blog/current/frontend  -> application source and static assets
+/opt/michel-blog/current/website   -> Hexo-generated legacy pages
+/opt/michel-blog/shared/runtime-data -> writable drafts, metadata and uploads
 ```
 
 ## Run locally
@@ -24,6 +27,7 @@ The server uses only Node.js built-ins.
 cd frontend
 ADMIN_PASSWORD='replace-me' \
 ZHIPU_API_KEY='replace-me' \
+BLOG_DATA_ROOT='../runtime-data' \
 HEXO_SOURCE_ROOT='../source' \
 node admin-server.mjs
 ```
@@ -36,17 +40,20 @@ http://127.0.0.1:8787/admin.html
 ```
 
 If `ADMIN_PASSWORD` is omitted, the server creates a temporary password for
-that process. Never put real credentials in source files or commit them.
+that process. Set `BLOG_DATA_ROOT` to a writable directory outside this source
+tree for persistent content and uploads. Never put real credentials in source
+files or commit them.
 
 ## Environment
 
-See `.env.example`. Production secrets should be injected by the service
-manager. The browser never receives the administrator password or Zhipu API
-key.
+See `.env.example` and `../deploy/compose.blog-writer.override.example.yaml`.
+Production secrets are injected from a separate environment file. The browser
+never receives the administrator password or Zhipu API key.
 
 ## Runtime data
 
-These directories are intentionally ignored by Git:
+These directories are intentionally ignored by Git and are not included in
+this source synchronization:
 
 ```text
 content/
@@ -55,7 +62,8 @@ uploads/
 ```
 
 They contain drafts, generated metadata, activity data, and uploaded media.
-Back them up separately from the application source.
+Back them up separately from the application source. `node_modules/`, release
+backups, and generated `website/` output are likewise not committed as source.
 
 ## Verification
 

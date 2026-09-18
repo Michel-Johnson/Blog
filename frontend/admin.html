@@ -7,18 +7,20 @@
     <meta name="supported-color-schemes" content="light" />
     <meta name="theme-color" content="#fbfaf7" />
     <title>Write · Michel Johnson</title>
-    <link rel="stylesheet" href="./styles.css?v=fold-blocks-v1-20260829" />
+    <link rel="stylesheet" href="./styles.css?v=fold-nowrap-v5-20260910" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <link rel="stylesheet" href="./assets/katex/katex.min.css?v=0.16.10-local-1" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css" />
+    <link rel="stylesheet" href="./assets/highlight/github.min.css?v=11.9.0-warm-2" />
     <link rel="preload" href="./assets/fonts/noto-serif-sc-400.woff2" as="font" type="font/woff2" crossorigin />
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+    <script src="./assets/vendor/markdown-it.min.js?v=14.1.0-local"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="./assets/katex/katex.min.js?v=0.16.10-local-1"></script>
     <script src="./assets/katex/contrib/auto-render.min.js?v=0.16.10-local-1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/build/highlight.min.js"></script>
+    <script src="./assets/highlight/highlight.min.js?v=11.9.0-local-1"></script>
+    <script src="./code-highlighting.js?v=multi-language-v1-20260916"></script>
+    <script src="./markdown-shortcuts.js?v=markdown-shortcuts-v1-20260916"></script>
     <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
-    <script src="./fold-blocks.js?v=fold-blocks-local-v1-20260829"></script>
+    <script src="./fold-blocks.js?v=fold-format-v1-20260915"></script>
     <style>
       :root {
         --writer-bg: #fbfaf7;
@@ -125,6 +127,21 @@
         font-weight: 500;
         text-align: center;
       }
+
+      .reader-editor-nav-actions [data-save-status] {
+        max-width: min(300px, 78vw);
+        height: 20px;
+        line-height: 20px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .reader-editor-nav-actions .chrome-actions {
+        max-width: 92vw;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+      }
+      .reader-editor-nav-actions .chrome-actions > * { flex-shrink: 0; }
 
       .admin-button {
         appearance: none;
@@ -588,6 +605,27 @@
         margin-top: 22px;
       }
 
+      .version-dialog-list {
+        display: grid;
+        gap: 7px;
+        max-height: min(58vh, 520px);
+        margin: 16px 0 0;
+        overflow: auto;
+      }
+
+      .version-dialog-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(45,45,45,.12);
+      }
+
+      .version-dialog-item:last-child { border-bottom: 0; }
+      .version-dialog-item p { margin: 0; font: 700 14px/1.35 var(--ui-font); }
+      .version-dialog-item small { display: block; margin-top: 3px; color: var(--writer-muted); font: 500 12px/1.35 var(--ui-font); }
+
       .annotation-dialog {
         width: min(620px, calc(100vw - 28px));
         max-width: none;
@@ -803,6 +841,9 @@
       }
 
       .annotation-toolbar-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         width: 32px;
         height: 32px;
         margin: 3px;
@@ -810,8 +851,17 @@
         border-radius: 4px;
         background: transparent;
         color: #555;
-        font: 800 18px/32px Georgia, serif;
         cursor: pointer;
+      }
+
+      .annotation-toolbar-button svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
 
       .annotation-toolbar-button:hover,
@@ -1295,6 +1345,26 @@
         background: rgba(251,250,247,.9);
       }
 
+      ::highlight(jerry-instruction) { background-color: #d8efff; color: #17354a; }
+      .jerry-speech-bubble { position: fixed; z-index: 2400; box-sizing: border-box; width: max-content; max-width: min(320px, calc(100vw - 24px)); padding: 14px 32px 14px 17px; border: 2px solid #43392e; border-radius: 19px; background: #fffdf4; color: #40382e; box-shadow: 3px 4px 0 rgba(67,57,46,.12); font-size: 15px; line-height: 1.6; }
+      .jerry-speech-bubble::before { content: ""; position: absolute; top: 100%; left: calc(var(--jerry-tail-x) - 9px); border: 10px solid transparent; border-top: 16px solid #43392e; border-bottom: 0; }
+      .jerry-speech-bubble::after { content: ""; position: absolute; top: calc(100% - 2px); left: calc(var(--jerry-tail-x) - 7px); border: 8px solid transparent; border-top: 14px solid #fffdf4; border-bottom: 0; }
+      .jerry-speech-bubble p { margin: 0; max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; }
+      .jerry-speech-bubble button { border: 0; background: transparent; color: #2866a0; cursor: pointer; padding: 4px 0; }
+      .jerry-speech-bubble .jerry-bubble-close { position: absolute; right: 8px; top: 5px; padding: 0 3px; color: #786c5e; font-size: 19px; }
+      .jerry-session { position:fixed; width:min(300px,calc(100vw - 24px)); box-sizing:border-box; z-index:2450; background:#fffdf7; color:#40382e; border:1px solid #ded8cc; border-radius:16px; padding:14px 16px 10px; box-shadow:0 3px 12px #43392e0c; font-family:inherit; }
+      .jerry-session[hidden] { display:none; }
+      .jerry-session::after { content:""; position:absolute; top:calc(100% - 6px); left:calc(var(--jerry-tail-x) - 6px); width:12px; height:12px; background:#fffdf7; border-right:1px solid #ded8cc; border-bottom:1px solid #ded8cc; transform:rotate(45deg); }
+      .jerry-session-log { max-height:min(32vh,260px); overflow:auto; margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.65; scrollbar-width:thin; }
+      .jerry-session-log p { margin:0 0 12px; }
+      .jerry-session-log p:last-child { margin-bottom:0; }
+      .jerry-session-log .jerry-message-user { color:#708a9d; font-size:13px; }
+      .jerry-session-log button { display:block; text-align:left; margin:8px 0; padding:0; border:0; background:none; color:#426e8c; font:inherit; cursor:pointer; }
+      .jerry-session form { margin:0; border-top:1px solid #eae6dd; padding-top:8px; }
+      .jerry-session textarea { display:block; box-sizing:border-box; width:100%; height:30px; min-height:30px; max-height:96px; resize:none; background:transparent; border:0; border-radius:0; padding:3px 0; outline:none; font:inherit; font-size:14px; line-height:24px; color:#40382e; }
+      .jerry-session textarea:focus-visible { box-shadow:0 1px 0 #a9c7dd; }
+      .jerry-session textarea::placeholder { color:#a09a90; }
+
       .markdown-source {
         width: min(var(--reader-content-width), calc(100% - var(--reader-content-gutter) * 2));
         max-width: var(--reader-content-width);
@@ -1443,9 +1513,11 @@
 
       .fold-block {
         margin: 1.15em 0;
-        border: 1px solid #d5c8aa;
-        border-radius: 9px;
-        background: #fffaf0;
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
         overflow: clip;
       }
 
@@ -1458,24 +1530,39 @@
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        min-height: 54px;
-        padding: 0 18px;
+        width: 100%;
+        min-width: 0;
+        min-height: 46px;
+        box-sizing: border-box;
+        padding: 11px 14px;
         cursor: pointer;
         color: var(--writer-ink);
-        background: linear-gradient(90deg, #fff0ac, #fffaf0);
-        font: 750 15px/1.35 var(--ui-font);
+        background: #eee9dc;
+        font: 600 15px/1.35 var(--ui-font);
         list-style: none;
+      }
+
+      .fold-block > summary > span:first-child {
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
 
       .fold-block > summary::-webkit-details-marker { display: none; }
       .fold-block > summary small {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        white-space: nowrap;
+        word-break: keep-all;
+        writing-mode: horizontal-tb;
         color: var(--writer-muted);
         font: 650 12px/1 var(--ui-font);
       }
 
       .fold-block__body {
-        padding: 2px 18px 14px;
-        border-top: 1px dashed #ddcfad;
+        padding: 2px 14px 14px;
+        border: 0;
+        border-left: 1px solid #d5cfc2;
       }
 
       .fold-block__body > :first-child { margin-top: 14px; }
@@ -1574,12 +1661,12 @@
         }
       }
     </style>
-    <link rel="stylesheet" href="./article-content.css?v=html-reference-type-v1-20260814" />
+    <link rel="stylesheet" href="./article-content.css?v=editor-code-contrast-v1-20260906" />
     <link rel="stylesheet" href="./mobile.css?v=assistant-dock-v45-20260805" />
     <link rel="stylesheet" href="./responsive.css?v=warm-paper-v25-20260814" />
     <link rel="stylesheet" href="./ask-ai-border-reset.css?v=borderless-v48-20260807" />
     <link rel="stylesheet" href="./ask-ai-shell-borderless-v49.css?v=warm-paper-v57-20260814" />
-    <link rel="stylesheet" href="./reader-editor.css?v=warm-paper-v17-20260814" />
+    <link rel="stylesheet" href="./reader-editor.css?v=chapter-planner-v3-20260910" />
   </head>
   <body class="admin-body post-body intro-done">
     <main class="admin-app post-shell">
@@ -1594,9 +1681,9 @@
           <p class="admin-status" data-save-status aria-live="polite">Locked</p>
           <div class="chrome-actions">
             <button class="admin-button admin-auth-only" type="button" data-lease-takeover hidden>Continue here</button>
-            <button class="admin-button admin-auth-only" type="button" data-undo>Undo</button>
-            <button class="admin-button admin-auth-only" type="button" data-unpublish hidden>Move to drafts</button>
-            <button class="admin-button primary admin-auth-only" type="button" data-publish>Publish</button>
+            <button class="admin-button admin-auth-only" type="button" data-versions>Versions</button>
+            <button class="admin-button admin-auth-only" type="button" data-unpublish hidden>Move to private</button>
+            <button class="admin-button primary admin-auth-only" type="button" data-publish>Move to public</button>
             <button class="admin-button danger admin-auth-only" type="button" data-delete-post>Delete</button>
           </div>
         </div>
@@ -1631,7 +1718,7 @@
       <section class="admin-workbench post-page" data-workbench data-mobile-view="write" hidden>
         <nav class="mobile-workbench-tabs" aria-label="Writer views">
           <button type="button" data-mobile-view-button="write" aria-selected="true">Write</button>
-          <button type="button" data-mobile-view-button="details" aria-selected="false">Details</button>
+          <button type="button" data-mobile-view-button="details" aria-selected="false">Book / Details</button>
           <button type="button" data-mobile-view-button="preview" aria-selected="false">Preview</button>
         </nav>
         <aside class="admin-sidebar post-hero">
@@ -1669,6 +1756,31 @@
               title="Generate summary"
             ><span aria-hidden="true">✦</span> Summary</button>
           </div>
+          <section class="reader-editor-book" aria-labelledby="reader-editor-book-title">
+            <div class="reader-editor-book-heading">
+              <strong id="reader-editor-book-title">Book / series</strong>
+              <span>Optional · leave the title empty for a standalone article</span>
+            </div>
+            <div class="reader-editor-book-grid">
+              <label class="admin-field reader-editor-book-name">
+                Book title
+                <input data-post-book-title type="text" placeholder="e.g. Notes on building with AI" />
+              </label>
+              <label class="admin-field">
+                Book ID
+                <input data-post-book-slug type="text" placeholder="generated from title" />
+              </label>
+              <label class="admin-field reader-editor-chapter-order">
+                Position
+                <select data-post-chapter-order aria-label="Chapter position">
+                  <option value="">Choose a book first</option>
+                </select>
+              </label>
+            </div>
+            <div class="reader-editor-chapter-plan" data-book-chapter-list aria-live="polite">
+              <p>Enter a book title to see its existing chapters.</p>
+            </div>
+          </section>
           <section class="reader-editor-details" data-editor-details-panel hidden>
             <label class="admin-field">
               Tags
@@ -1714,11 +1826,11 @@
           data-assistant-launcher
           aria-expanded="false"
           aria-controls="writer-assistant"
-          aria-label="Ask AI"
-          title="Ask AI"
+          aria-label="Jerry"
+          title="Jerry"
         >
           <img class="reader-assistant-pet-frame" data-assistant-pet-frame src="./assets/jerry-pet/idle/00.png?v=jerrydeskpet-v3-20260811" alt="" aria-hidden="true">
-          <span class="reader-assistant-pet-label">Ask AI</span>
+          <span class="reader-assistant-pet-label">Jerry</span>
         </button>
         <aside
           class="reader-assistant"
@@ -1758,6 +1870,18 @@
 
     </main>
 
+    <dialog class="delete-dialog" data-version-dialog>
+      <form class="delete-dialog-card" method="dialog">
+        <p class="delete-dialog-kicker">Version history</p>
+        <h2>Restore an earlier version</h2>
+        <p class="delete-dialog-copy">Every synced edit is kept. Restoring also creates a new version.</p>
+        <div class="version-dialog-list" data-version-list aria-live="polite"></div>
+        <div class="delete-dialog-actions">
+          <button class="admin-button" type="submit">Close</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="delete-dialog" data-delete-dialog>
       <form class="delete-dialog-card" method="dialog">
         <p class="delete-dialog-kicker">Delete post</p>
@@ -1772,12 +1896,12 @@
 
     <dialog class="delete-dialog" data-unpublish-dialog>
       <form class="delete-dialog-card" method="dialog">
-        <p class="delete-dialog-kicker">Move to drafts</p>
+        <p class="delete-dialog-kicker">Move to private</p>
         <h2>Withdraw this article?</h2>
-        <p class="delete-dialog-copy">The article will disappear from the public blog and return to your draft list. You can publish it again later.</p>
+        <p class="delete-dialog-copy">The article will disappear from the public blog and move to your private library. You can move it to public again later.</p>
         <div class="delete-dialog-actions">
           <button class="admin-button" type="submit" value="cancel">Cancel</button>
-          <button class="admin-button" type="submit" value="confirm">Move to drafts</button>
+          <button class="admin-button" type="submit" value="confirm">Move to private</button>
         </div>
       </form>
     </dialog>
@@ -1840,8 +1964,10 @@
     </dialog>
 
     <script src="./inline-annotations.js?v=annotation-popover-fix-20260813"></script>
-    <script src="./admin.js?v=fold-blocks-v1-20260829"></script>
+    <script src="./authored-posts.js?v=chapter-planner-v1-20260910"></script>
+    <script src="./admin.js?v=chapter-planner-v4-20260910"></script>
   <script src="./reader-editor.js?v=remove-details-button-v13-20260812"></script>
-    <script src="./assistant.js?v=assistant-stream-scroll-v47-20260822"></script>
+    <script src="./assistant.js?v=jerry-speech-v3-20260906"></script>
   </body>
 </html>
+

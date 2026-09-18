@@ -1,0 +1,40 @@
+# Example override for the existing web service in the host Compose project.
+# Provide the environment file separately; never commit production credentials.
+services:
+  blog-writer:
+    image: node:18-alpine
+    restart: unless-stopped
+    network_mode: service:web
+    user: "1000:1000"
+    working_dir: /app
+    command: ["node", "admin-server.mjs"]
+    env_file:
+      - /opt/michel-blog/shared/config/michel-writer.env
+    environment:
+      ADMIN_PORT: "8787"
+      BLOG_DATA_ROOT: /data
+      ADMIN_COOKIE_SECURE: "1"
+    volumes:
+      - /opt/michel-blog/current/frontend:/app:ro
+      - /opt/michel-blog/shared/runtime-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 100
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/writing-activity').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      start_period: 10s
+      retries: 4
+
+  web:
+    volumes:
+      - /opt/michel-blog/current/frontend:/srv-michel-blog:ro
+      - /opt/michel-blog/current/website:/srv-michel-blog-legacy:ro

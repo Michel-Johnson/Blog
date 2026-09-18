@@ -1,4 +1,6 @@
-(function () {
+(async function () {
+  if (window.MichelLanguage?.en) await window.MichelLanguage.ready;
+  const english = window.MichelLanguage?.en === true;
   const stableFlowImageMode = true;
   const createLinks = document.querySelectorAll('[data-create-link]');
   if (createLinks.length) {
@@ -751,6 +753,55 @@
       .replace(/\\\(([\s\S]+?)\\\)/g, (_match, tex) => `\\(${normalizeMathTexShortcuts(tex)}\\)`);
   }
 
+  function normalizeOverindentedFences(markdown) {
+    const lines = String(markdown || "").split("\n");
+    const output = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const opening = /^([ \t]{4,})(`{3,}|~{3,})(.*)$/.exec(lines[index]);
+      if (!opening) {
+        output.push(lines[index]);
+        continue;
+      }
+      let closingIndex = -1;
+      let closing = null;
+      for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+        const candidate = /^([ \t]*)(`{3,}|~{3,})\s*$/.exec(lines[cursor]);
+        if (candidate && candidate[2][0] === opening[2][0]) {
+          closingIndex = cursor;
+          closing = candidate;
+          break;
+        }
+      }
+      if (closingIndex < 0 || closing[1].length >= opening[1].length) {
+        output.push(lines[index]);
+        continue;
+      }
+      output.push(`${opening[2]}${opening[3]}`);
+      for (let cursor = index + 1; cursor < closingIndex; cursor += 1) {
+        const line = lines[cursor];
+        output.push(line.startsWith(opening[1]) ? line.slice(opening[1].length) : line);
+      }
+      output.push(closing[2]);
+      index = closingIndex;
+    }
+    return output.join("\n");
+  }
+
+  function repairEscapedInlineCode(markdown) {
+    let fence = "";
+    return String(markdown || "").split("\n").map((line) => {
+      const marker = /^\s*(`{3,}|~{3,})/.exec(line);
+      if (marker) {
+        const type = marker[1][0];
+        if (!fence) fence = type;
+        else if (fence === type) fence = "";
+        return line;
+      }
+      if (fence) return line;
+      return line.replace(/\\`([^`\n]+?)\\`/g, (_match, code) => `\`${code}\``);
+    }).join("\n");
+  }
+
   function separateIntentionalParagraphs(markdown) {
     let fenced = false;
     const output = [];
@@ -882,7 +933,9 @@
     finishMath();
     window.requestAnimationFrame(finishMath);
     window.setTimeout(finishMath, 250);
-    if (window.hljs) {
+    if (window.MichelCodeHighlight) {
+      window.MichelCodeHighlight.highlightAll(content);
+    } else if (window.hljs) {
       content.querySelectorAll("pre code").forEach((block) => window.hljs.highlightElement(block));
     }
     if (!stableFlowImageMode) fitAbsoluteImages(content);
@@ -919,7 +972,7 @@
       breaks: true
     });
     const normalizedMarkdown = normalizeMathShortcutsInMarkdown(
-      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(trimTrailingEmptyContent(markdown)))))
+      preserveVisualIndentation(separateLooseTextLines(separateIntentionalParagraphs(separateStandaloneHtmlBreaks(normalizeOverindentedFences(repairEscapedInlineCode(trimTrailingEmptyContent(markdown)))))))
     );
     const rawHtml = md.render(window.MichelFoldBlocks ? window.MichelFoldBlocks.expand(normalizedMarkdown, md) : normalizedMarkdown);
     const cleanHtml = window.DOMPurify ? window.DOMPurify.sanitize(rawHtml, {
@@ -988,6 +1041,98 @@
     });
   }
 
+  function setupBookReading() {
+    const bookSlug = String(post?.bookSlug || "").trim();
+    if (!bookSlug) return;
+    const chapters = authoredPosts
+      .filter((item) => String(item?.bookSlug || "") === bookSlug)
+      .sort((a, b) => {
+        const order = Number(a.chapterOrder || 0) - Number(b.chapterOrder || 0);
+        return order || String(a.date || "").localeCompare(String(b.date || "")) || String(a.title || "").localeCompare(String(b.title || ""));
+      });
+    const chapterIndex = chapters.findIndex((item) => item.slug === post.slug);
+    if (chapterIndex < 0) return;
+    const bookTitle = post.bookTitle || chapters.find((item) => item.bookTitle)?.bookTitle || bookSlug;
+    const contentsHref = `./book.html?book=${encodeURIComponent(bookSlug)}`;
+    const chapterHref = (item) => `./post.html?slug=${encodeURIComponent(item.slug)}`;
+    const progressKey = `michel-book-progress-v1:${bookSlug}${english ? ':en' : ''}`;
+    let savedProgress = null;
+    try {
+      savedProgress = JSON.parse(window.localStorage.getItem(progressKey) || "null");
+    } catch (_) {
+      savedProgress = null;
+    }
+
+    const context = document.createElement("nav");
+    context.className = "book-reader-context";
+    context.setAttribute("aria-label", english ? "Book reading position" : "书籍阅读位置");
+    const contentsLink = document.createElement("a");
+    contentsLink.href = contentsHref;
+    contentsLink.textContent = bookTitle;
+    const position = document.createElement("span");
+    position.textContent = english ? `Chapter ${chapterIndex + 1} of ${chapters.length}` : `第 ${chapterIndex + 1} / ${chapters.length} 章`;
+    context.append(contentsLink, position);
+    content.before(context);
+
+    const navigation = document.createElement("nav");
+    navigation.className = "book-reader-navigation";
+    navigation.setAttribute("aria-label", english ? "Chapter navigation" : "章节导航");
+    const previous = chapters[chapterIndex - 1];
+    const next = chapters[chapterIndex + 1];
+    if (previous) {
+      const previousLink = document.createElement("a");
+      previousLink.href = chapterHref(previous);
+      previousLink.textContent = `← ${previous.title}`;
+      navigation.append(previousLink);
+    } else {
+      navigation.append(document.createElement("span"));
+    }
+    const directoryLink = document.createElement("a");
+    directoryLink.href = contentsHref;
+    directoryLink.textContent = english ? "Contents" : "目录";
+    navigation.append(directoryLink);
+    if (next) {
+      const nextLink = document.createElement("a");
+      nextLink.href = chapterHref(next);
+      nextLink.textContent = `${next.title} →`;
+      navigation.append(nextLink);
+    } else {
+      navigation.append(document.createElement("span"));
+    }
+    postFooter.before(navigation);
+    sourceLink.href = contentsHref;
+    sourceLink.textContent = english ? "Back to contents" : "返回目录";
+    postFooter.hidden = false;
+
+    const saveProgress = () => {
+      const maximum = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      const progress = {
+        chapterSlug: post.slug,
+        scrollRatio: Math.max(0, Math.min(1, window.scrollY / maximum)),
+        updatedAt: new Date().toISOString()
+      };
+      try {
+        window.localStorage.setItem(progressKey, JSON.stringify(progress));
+      } catch (_) {
+        // Reading still works when storage is unavailable.
+      }
+    };
+    let progressTimer = 0;
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(progressTimer);
+      progressTimer = window.setTimeout(saveProgress, 350);
+    }, { passive: true });
+    window.addEventListener("pagehide", saveProgress);
+
+    if (params.get("resume") === "1" && savedProgress?.chapterSlug === post.slug) {
+      const ratio = Math.max(0, Math.min(1, Number(savedProgress.scrollRatio || 0)));
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        window.scrollTo({ top: maximum * ratio, behavior: "auto" });
+      }));
+    }
+  }
+
   if (!post) {
     makeErrorPage();
     return;
@@ -1006,7 +1151,9 @@
   meta.textContent = `${safeCategory} · ${safeDate}`;
   title.textContent = safeTitle;
   if (/[^\x00-\x7F]/.test(safeTitle)) title.classList.add("is-cjk-title");
-  excerpt.textContent = plainTextSummary(post.excerpt) || summaryFromMarkdown(post.markdown) || "";
+  const translationPending = english && post.translationStatus !== 'ready';
+  excerpt.textContent = translationPending ? '' : plainTextSummary(post.excerpt) || summaryFromMarkdown(post.markdown) || "";
+  if (translationPending) excerpt.hidden = true;
   if (post.markdown) {
     renderMarkdownPost(post.markdown);
   } else if (post.content) {
@@ -1020,7 +1167,7 @@
   }
 
   if (editButton) {
-    editButton.hidden = false;
+    editButton.hidden = english;
     editButton.addEventListener("click", beginEdit);
   }
 
@@ -1029,9 +1176,13 @@
     pinButton.addEventListener("click", beginPinToggle);
   }
 
+  setupBookReading();
+
   if (post.authored) {
-    sourceLink.href = "./?home=1#blog";
-    sourceLink.textContent = "Back to blog shelf";
+    if (!post.bookSlug) {
+      sourceLink.href = "./?home=1#blog";
+      sourceLink.textContent = "Back to blog shelf";
+    }
     postFooter.hidden = false;
   }
 

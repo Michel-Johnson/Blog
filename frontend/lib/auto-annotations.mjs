@@ -42,6 +42,9 @@ function protectedRanges(markdown) {
       ranges.push([match.index, match.index + match[0].length]);
     }
   });
+  for (const match of String(markdown || "").matchAll(/^\$\$fold[ \t]*\r?\n[\s\S]*?\r?\n\$\$(?=\r?\n|$)/gm)) {
+    ranges.push([match.index, match.index + match[0].length]);
+  }
   ranges.push(...rawHtmlBlockRanges(markdown));
   return ranges;
 }

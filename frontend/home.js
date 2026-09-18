@@ -1,4 +1,6 @@
-(() => {
+(async () => {
+  if (window.MichelLanguage?.en) await window.MichelLanguage.ready;
+  const english = window.MichelLanguage?.en === true;
   const themeJump = document.querySelector('[data-theme-jump]');
   const themePicker = document.querySelector('[data-site-theme-picker]');
   if (themeJump && themePicker) {
@@ -164,6 +166,27 @@
   };
   const visiblePosts = allPosts.filter((post) => !isAiPost(post));
   const hiddenAiPosts = allPosts.filter(isAiPost);
+  const seenBooks = new Set();
+  const libraryPosts = visiblePosts.flatMap((post) => {
+    const bookSlug = safeText(post?.bookSlug);
+    if (!bookSlug) return [post];
+    if (seenBooks.has(bookSlug)) return [];
+    seenBooks.add(bookSlug);
+    const chapters = visiblePosts.filter((item) => safeText(item?.bookSlug) === bookSlug);
+    const latestDate = chapters.map((item) => safeText(item.date)).sort().at(-1) || safeText(post.date);
+    return [{
+      ...post,
+      slug: "",
+      originalSlug: "",
+      aliases: [],
+      title: safeText(post.bookTitle, bookSlug),
+      category: "Books",
+      date: latestDate,
+      excerpt: `${chapters.length} chapters · Continue from where you left off.`,
+      source: `./book.html?book=${encodeURIComponent(bookSlug)}`,
+      bookEntry: true
+    }];
+  });
   const cleanSummary = (value, fallback = '') => {
     const withoutImages = String(value || fallback)
       .replace(/<img\b[^>]*>/gi, ' ')
@@ -330,7 +353,8 @@
     else if (source.startsWith('http://') || source.startsWith('https://')) href = source;
     else if (source.startsWith('/')) href = source;
     else href = `/${source.replace(/^\.\//, '')}`;
-    return window.MICHEL_BLOG_THEME ? window.MICHEL_BLOG_THEME.href(href) : href;
+    const themed = window.MICHEL_BLOG_THEME ? window.MICHEL_BLOG_THEME.href(href) : href;
+    return window.MichelLanguage ? window.MichelLanguage.href(themed) : themed;
   };
 
   const mountedBySlug = new Map(mountedPosts.filter((post) => post.slug).map((post) => [post.slug, post]));
@@ -694,7 +718,7 @@
     const rowsPerShelf = 3;
     const cellsPerShelf = cellsPerRow * rowsPerShelf;
     const rowCapacity = cellCapacity * cellsPerRow;
-    const groupedPosts = visiblePosts.reduce((groups, post) => {
+    const groupedPosts = libraryPosts.reduce((groups, post) => {
       const category = safeText(post.category, post.ai ? 'AI' : 'Blog');
       if (!groups.has(category)) groups.set(category, []);
       groups.get(category).push(post);
@@ -884,11 +908,11 @@
     list.appendChild(fragment);
     list.dataset.layoutVersion = 'library-grid-v74';
     if (count) {
-      count.textContent = `${visiblePosts.length} posts`;
+      count.textContent = `${libraryPosts.length} volumes`;
     }
     list.dataset.rendered = '1';
     renderWritingActivity();
-    window.MICHEL_BOOKSHELF_POSTS = visiblePosts.map((post) => ({
+    window.MICHEL_BOOKSHELF_POSTS = libraryPosts.map((post) => ({
       title: safeText(post.title, 'Untitled'),
       excerpt: cleanSummary(post.excerpt) || 'Open this post from Michel Johnson\'s archive.',
       category: safeText(post.category, post.ai ? 'AI' : 'Blog'),

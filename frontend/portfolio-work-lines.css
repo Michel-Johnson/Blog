@@ -1,0 +1,22 @@
+/* Preserve the single-column layout and straight dividers. */
+main{overflow-x:clip}
+#work .projects>a>div{min-width:0}
+#work .projects h3{overflow-wrap:break-word}
+#work .projects p{text-wrap:pretty}
+@media(prefers-reduced-motion:no-preference){
+  .scroll-slide{transform:translate3d(var(--slide-x,0px),0,0);opacity:var(--slide-opacity,1)}
+}
+.scroll-slide:focus-within{transform:none!important;opacity:1!important}
+
+/* Give About and Contact one full screen each; allow larger text to grow. */
+.about-page>.content{min-height:100svh;padding:clamp(40px,6svh,72px) 7.5%;scroll-margin-top:0}
+.about-page .about{align-items:center;align-content:center}
+.about-page .about>p{margin:0}
+.about-page .closing{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.about-page .closing h2{margin:0 0 20px}
+.about-page .closing .explore{margin-top:0}
+@media(max-width:700px){
+  .about-page>.content{padding:36px 7%}
+  .about-page .about{gap:24px}
+  .about-page .about>p{font-size:16px;line-height:1.6}
+}

@@ -3,13 +3,9 @@
   const loginForm = document.querySelector("[data-login-form]");
   const loginError = document.querySelector("[data-login-error]");
   const workspace = document.querySelector("[data-private-workspace]");
-  const logoutButton = document.querySelector("[data-logout]");
   const bookcase = document.querySelector("[data-private-bookcase]");
-  const draftsContainer = document.querySelector("[data-private-drafts]");
   const publishedCount = document.querySelector("[data-published-count]");
-  const draftCount = document.querySelector("[data-draft-count]");
   const publishedEmpty = document.querySelector("[data-published-empty]");
-  const draftsEmpty = document.querySelector("[data-drafts-empty]");
   let csrfToken = "";
   const bookLinks = document.querySelector('[data-book-links]');
   const booksLoading = document.querySelector('[data-books-loading]');
@@ -30,7 +26,6 @@
   function setLocked(locked) {
     loginPanel.hidden = !locked;
     workspace.hidden = locked;
-    logoutButton.hidden = locked;
     if (locked) {
       renderVersion += 1;
       bookshelfModule?.clearBookshelf();
@@ -38,11 +33,8 @@
       bookLinks.replaceChildren();
       bookLinks.classList.remove('is-modeled');
       booksLoading.hidden = true;
-      draftsContainer.querySelectorAll(".private-paper").forEach((paper) => paper.remove());
       publishedCount.textContent = "0 volumes";
-      draftCount.textContent = "0 sheets";
       publishedEmpty.hidden = true;
-      draftsEmpty.hidden = true;
     }
   }
 
@@ -53,18 +45,6 @@
   function editorHref(post) {
     const identity = identityOf(post);
     return identity ? `./admin.html?edit=${encodeURIComponent(identity)}` : "./admin.html?new=1";
-  }
-
-  function readableTime(value) {
-    const date = new Date(value || 0);
-    if (!Number.isFinite(date.getTime())) return "Recently edited";
-    return new Intl.DateTimeFormat(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    }).format(date);
   }
 
   async function renderBooks(posts) {
@@ -91,7 +71,7 @@
     });
     if (!volumes.length) return;
     try {
-      const module = await import('./all-posts-3d.js?v=shared-shelf-20260831');
+      const module = await import('./all-posts-3d.js?v=natural-spine-v6-20260910');
       if (version !== renderVersion) return;
       bookshelfModule = module;
       module.mountBookshelf(volumes, { host: bookcase, privateLibrary: true }, true);
@@ -107,39 +87,10 @@
     }
   }
 
-  function makePaper(post, index) {
-    const anchor = document.createElement("a");
-    anchor.className = "private-paper";
-    anchor.href = editorHref(post);
-    anchor.style.setProperty("--paper-tilt", `${[-.5, .35, -.2][index % 3]}deg`);
-
-    const status = document.createElement("span");
-    status.className = "private-paper-status";
-    status.textContent = String(post.category || "Draft");
-    const title = document.createElement("h3");
-    title.textContent = String(post.title || "Untitled");
-    const excerpt = document.createElement("p");
-    excerpt.className = "private-paper-excerpt";
-    excerpt.textContent = String(post.excerpt || "Continue writing this draft.");
-    const time = document.createElement("time");
-    time.className = "private-paper-time";
-    time.textContent = readableTime(post.updatedAt || post.createdAt || post.date);
-    anchor.append(status, title, excerpt, time);
-    return anchor;
-  }
-
-  function renderDrafts(posts) {
-    draftsContainer.querySelectorAll(".private-paper").forEach((paper) => paper.remove());
-    draftsEmpty.hidden = posts.length !== 0;
-    draftCount.textContent = `${posts.length} ${posts.length === 1 ? "sheet" : "sheets"}`;
-    posts.forEach((post, index) => draftsContainer.append(makePaper(post, index)));
-  }
-
   async function loadLibrary() {
-    const payload = await request("/api/admin/posts?status=all");
+    const payload = await request("/api/admin/posts?status=draft");
     const posts = Array.isArray(payload.posts) ? payload.posts : [];
-    renderBooks(posts.filter((post) => post.status !== "draft"));
-    renderDrafts(posts.filter((post) => post.status === "draft"));
+    await renderBooks(posts.filter((post) => post.status === "draft"));
   }
 
   async function unlock(password) {
@@ -171,18 +122,6 @@
       submit.disabled = false;
       submit.textContent = idleLabel;
       loginForm.removeAttribute("aria-busy");
-    }
-  });
-
-  logoutButton.addEventListener("click", async () => {
-    try {
-      await request("/api/admin/logout", {
-        method: "POST",
-        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {}
-      });
-    } finally {
-      csrfToken = "";
-      setLocked(true);
     }
   });
 
